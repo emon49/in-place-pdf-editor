@@ -65,6 +65,20 @@ export function applyMatrix(m: Matrix, p: Point): Point {
   return { x: m[0] * p.x + m[2] * p.y + m[4], y: m[1] * p.x + m[3] * p.y + m[5] };
 }
 
+/** Composition `outer ∘ inner`: applies `inner` first, then `outer`. */
+export function multiplyMatrix(outer: Matrix, inner: Matrix): Matrix {
+  const [a, b, c, d, e, f] = outer;
+  const [a2, b2, c2, d2, e2, f2] = inner;
+  return [
+    a * a2 + c * b2,
+    b * a2 + d * b2,
+    a * c2 + c * d2,
+    b * c2 + d * d2,
+    a * e2 + c * f2 + e,
+    b * e2 + d * f2 + f,
+  ];
+}
+
 export function invertMatrix(m: Matrix): Matrix {
   const [a, b, c, d, e, f] = m;
   const det = a * d - b * c;

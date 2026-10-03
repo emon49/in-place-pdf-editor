@@ -15,22 +15,22 @@
 
 ## 3. Text Lines: fragments, merging, order, identity
 
-- [ ] 3.1 Implement fragment reading (`getOperatorList()` then `getTextContent({ disableNormalization: true })`) producing `Fragment[]` with text, text matrix, width, font name and page geometry; verify an integration test on the Invoice sample returns fragments with the expected matrices, and that a ligature survives unnormalised
-- [ ] 3.2 Implement the pure merge function in display space (baseline tolerance 0.2 em, equal font/size/colour/render mode/scaling, gap at most 0.25 em); verify unit tests over synthetic fragments cover the sentence-in-three-fragments, table-cell and style-change scenarios from the spec
-- [ ] 3.3 Implement space restoration (insert one space at a gap of at least 0.08 em unless whitespace is already present); verify unit tests cover the "Hello world" and kerned "AV" scenarios, including fragments that already end with a space
-- [ ] 3.4 Implement Text Line geometry (baseline origin, glyph bounding box from ascent and descent, stored in Page Space with non-negative width and height); verify unit tests on a 12 pt line at (72, 700) and a property test that boxes never have negative extents
-- [ ] 3.5 Implement locked detection (skew after removing page rotation, vertical writing, Type 3) with reason codes, and ensure locked fragments never merge; verify unit tests distinguish a rotated run on an unrotated page from horizontal text on a `/Rotate 90` page
+- [x] 3.1 Implement fragment reading (`getOperatorList()` then `getTextContent({ disableNormalization: true })`) producing `Fragment[]` with text, text matrix, width, font name and page geometry; verify an integration test on the Invoice sample returns fragments with the expected matrices, and that a ligature survives unnormalised
+- [x] 3.2 Implement the pure merge function in display space (baseline tolerance 0.2 em, equal font/size/colour/render mode/scaling, gap at most 0.25 em); verify unit tests over synthetic fragments cover the sentence-in-three-fragments, table-cell and style-change scenarios from the spec
+- [x] 3.3 Implement space restoration (insert one space at a gap of at least 0.08 em unless whitespace is already present); verify unit tests cover the "Hello world" and kerned "AV" scenarios, including fragments that already end with a space
+- [x] 3.4 Implement Text Line geometry (baseline origin, glyph bounding box from ascent and descent, stored in Page Space with non-negative width and height); verify unit tests on a 12 pt line at (72, 700) and a property test that boxes never have negative extents
+- [x] 3.5 Implement locked detection (skew after removing page rotation, vertical writing, Type 3) with reason codes, and ensure locked fragments never merge; verify unit tests distinguish a rotated run on an unrotated page from horizontal text on a `/Rotate 90` page
 - [ ] 3.6 Implement display-space reading order and `"<pageIndex>:<sequence>"` identity; verify unit tests cover ordering on a rotated page and an integration test shows identifiers are unchanged when a page is extracted twice
 - [ ] 3.7 Contain extraction failures per page (status `failed`, page still rendered, other pages unaffected); verify a unit test with a throwing extractor asserts the status and that the next page extracts normally
 
 ## 4. Font detection (TY-1, TY-2, TY-4, TY-5, TY-7)
 
-- [ ] 4.1 Implement font size from the vertical matrix scale, horizontal scaling, and line height from ascent and descent; verify unit tests include the compressed-matrix case (horizontal 6, vertical 12 reports 12 pt)
-- [ ] 4.2 Implement family normalization (subset prefix, PostScript and style suffixes) and Font Class with weight and italic, preferring descriptor flags and falling back to name heuristics; verify unit tests cover `BWODTG+Times-Bold`, `TimesNewRomanPSMT`, `LiberationSans-Bold-2000`, a fixed-pitch descriptor and a descriptor-less bold name
-- [ ] 4.3 Implement the font-dictionary reader over the pdf-lib handle (BaseFont, subtype, descriptor flags, italic angle, weight, encoding, simple versus composite, decoded `FontFile`/`FontFile2`/`FontFile3` bytes); verify an integration test reports the subset sample font as embedded and the Standard 14 sample font as not embedded
-- [ ] 4.4 Implement the sfnt table reader for `OS/2` `fsType` and, when present, `cmap`; verify unit tests cover an installable flag, a preview-and-print flag, and a subset program with no `OS/2` table reported as permitting editing
-- [ ] 4.5 Implement character coverage in the order ToUnicode, program `cmap`, standard encoding, unknown; verify an integration test shows the subset sample's coverage holds exactly the characters it draws and excludes one it does not
-- [ ] 4.6 Make unreadable font facts degrade to unknown without losing family, size or style; verify a unit test with a truncated font program still reports the family and marks coverage and licence unknown
+- [x] 4.1 Implement font size from the vertical matrix scale, horizontal scaling, and line height from ascent and descent; verify unit tests include the compressed-matrix case (horizontal 6, vertical 12 reports 12 pt)
+- [x] 4.2 Implement family normalization (subset prefix, PostScript and style suffixes) and Font Class with weight and italic, preferring descriptor flags and falling back to name heuristics; verify unit tests cover `BWODTG+Times-Bold`, `TimesNewRomanPSMT`, `LiberationSans-Bold-2000`, a fixed-pitch descriptor and a descriptor-less bold name
+- [x] 4.3 Implement the font-dictionary reader over the pdf-lib handle (BaseFont, subtype, descriptor flags, italic angle, weight, encoding, simple versus composite, decoded `FontFile`/`FontFile2`/`FontFile3` bytes); verify an integration test reports the subset sample font as embedded and the Standard 14 sample font as not embedded
+- [x] 4.4 Implement the sfnt table reader for `OS/2` `fsType` and, when present, `cmap`; verify unit tests cover an installable flag, a preview-and-print flag, and a subset program with no `OS/2` table reported as permitting editing
+- [x] 4.5 Implement character coverage in the order ToUnicode, program `cmap`, standard encoding, unknown; verify an integration test shows the subset sample's coverage holds exactly the characters it draws and excludes one it does not
+- [x] 4.6 Make unreadable font facts degrade to unknown without losing family, size or style; verify a unit test with a truncated font program still reports the family and marks coverage and licence unknown
 
 ## 5. Colour detection (TY-3)
 

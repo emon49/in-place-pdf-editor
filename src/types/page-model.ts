@@ -50,7 +50,8 @@ export interface FontFacts {
   /** The BaseFont as written in the document, subset prefix included. */
   readonly rawName: string;
   readonly subtype: string | null;
-  readonly embedding: FontEmbedding;
+  /** Null when the font could not be matched to a dictionary in the document. */
+  readonly embedding: Unknown<FontEmbedding>;
   readonly licence: Unknown<FontLicence>;
   readonly encoding: Unknown<FontEncoding>;
   /** Characters the font can draw; null when unknown. */
