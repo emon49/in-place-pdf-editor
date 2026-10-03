@@ -56,9 +56,9 @@ Key rules:
 
 ```
 src/
-  components/    PDFViewer, InlineTextEditor, Header, Sidebar, PropertiesPanel,
-                 PDFUploader, ExportModal, ShortcutsModal
-  store/         editorStore.ts
+  components/    PDFViewer, TextOverlay, Sidebar, TextObjectsTab, InlineTextEditor, Header,
+                 PropertiesPanel, PDFUploader, ExportModal, ShortcutsModal
+  store/         editorStore.ts, useEditor.ts, usePageModel.ts (page model + sampling hooks)
   lib/
     coordinates.ts        # the single Page/Display/Screen conversion helper
     zoom.ts, render-scale.ts, keyboard.ts
@@ -66,16 +66,23 @@ src/
     document-registry.ts  # PDF.js handles + original bytes (kept out of the store)
     sample-catalog.ts, samples/   # pdf-lib sample generators (lazy-loaded)
     pdf-objects.ts
-    pdf-text-extractor.ts
-    font-resolver.ts
-    font-style-extractor.ts
-    pdf-color-extractor.ts
+    pdf-text-extractor.ts   # reads PDF.js text fragments (operator list first)
+    text-geometry.ts        # pure: merge fragments into Text Lines, geometry, locking, reading order
+    content-stream-state.ts # operator-list state walker + span/item correlation (fill colour, spacing)
+    build-page-model.ts     # fragments -> PageModel (lazy-loaded); page-model.ts is its cache
+    font-resolver.ts        # family normalization and Font Class (the chain itself is M2)
+    font-style-extractor.ts # matrix -> size, scaling, line height
+    font-descriptor.ts      # the document's font dictionary via pdf-lib: embedding, encoding, coverage
+    sfnt.ts, to-unicode.ts, standard-encodings.ts   # fsType/cmap reader, ToUnicode, named encodings
+    pdf-color-extractor.ts  # pixel sampling: glyph colour fallback, background ring + uniformity
+    page-raster.ts, page-sampler.ts   # scale-1 sampling render, idle-time sampling job
+    object-labels.ts, virtual-window.ts
     pdf-image-extractor.ts
     image-replacement-engine.ts
     text-replacement-engine.ts
     pdf-exporter.ts
     sample-documents.ts
-  types/
+  types/         page-model.ts (TextLine, PageModel, font facts)
 tests/           unit (incl. components/), integration (Node PDF.js), e2e, fixtures
 csp.ts           single Content-Security-Policy source (headers, _headers, meta)
 ```

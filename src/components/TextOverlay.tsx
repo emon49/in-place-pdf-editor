@@ -53,7 +53,12 @@ export function TextOverlay({ lines, geometry, zoom, selectedId, onSelect, onSte
   return (
     // The container only forwards key events from the boxes it holds; it is not itself interactive.
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
-    <div data-testid="text-overlay" className="pointer-events-none absolute inset-0" onKeyDown={onKeyDown}>
+    <div
+      data-testid="text-overlay"
+      data-sampled={lines.every((l) => l.background.status === 'ready')}
+      className="pointer-events-none absolute inset-0"
+      onKeyDown={onKeyDown}
+    >
       {lines.map((line) => {
         const rect = displayRectToScreen(pageRectToDisplay(geometry, line.box), zoom);
         const isSelected = line.id === selectedId;

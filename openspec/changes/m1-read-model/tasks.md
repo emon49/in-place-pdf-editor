@@ -62,8 +62,8 @@
 
 ## 9. End-to-end verification
 
-- [ ] 9.1 E2E: open each sample, click text on the page and confirm the box, selection ring and matching sidebar row; verify Playwright tests pass against the production build
-- [ ] 9.2 E2E: confirm boxes stay aligned after zooming and on the rotated page, and that the rotated watermark is locked with its explanation; verify tests pass and attach a screenshot of the overlay on the rotated page
-- [ ] 9.3 E2E: keyboard-only selection (step through objects, Escape, scroll into view) and the sidebar tab; verify tests pass with no pointer interaction
-- [ ] 9.4 Measure extraction and sampling on the 10-page 5 MB fixture and the heaviest sample; verify the first page stays within the 2 s budget from the page-viewer spec, report extraction time, and confirm controls respond while extraction runs
-- [ ] 9.5 Run `npm run typecheck`, `npm run lint`, `npm run test` and `npm run test:e2e`; verify all pass and update `CLAUDE.md` only if the delivered module layout differs from what it documents
+- [x] 9.1 E2E: open each sample, click text on the page and confirm the box, selection ring and matching sidebar row; verify Playwright tests pass against the production build
+- [x] 9.2 E2E: confirm boxes stay aligned after zooming and on the rotated page, and that the rotated watermark is locked with its explanation; verify tests pass and attach a screenshot of the overlay on the rotated page
+- [x] 9.3 E2E: keyboard-only selection (step through objects, Escape, scroll into view) and the sidebar tab; verify tests pass with no pointer interaction
+- [x] 9.4 Measure extraction and sampling on the 10-page 5 MB fixture and the heaviest sample; verify the first page stays within the 2 s budget from the page-viewer spec, report extraction time, and confirm controls respond while extraction runs
+- [x] 9.5 Run `npm run typecheck`, `npm run lint`, `npm run test` and `npm run test:e2e`; verify all pass and update `CLAUDE.md` only if the delivered module layout differs from what it documents
