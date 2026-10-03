@@ -80,4 +80,22 @@ describe('Header (5.4)', () => {
     renderHeader({ documentName: null });
     expect(screen.queryByRole('button', { name: 'Next page' })).toBeNull();
   });
+
+  it('shows edit count badge with correct count (10.4)', () => {
+    renderHeader({ editCount: 3 });
+    const badge = screen.getByTestId('edit-count-badge');
+    expect(badge.textContent).toContain('3');
+    expect(badge.textContent).toContain('edits');
+  });
+
+  it('hides edit count badge when count is 0 (10.4)', () => {
+    renderHeader({ editCount: 0 });
+    expect(screen.queryByTestId('edit-count-badge')).toBeNull();
+  });
+
+  it('shows singular "edit" for count 1 (10.4)', () => {
+    renderHeader({ editCount: 1 });
+    const badge = screen.getByTestId('edit-count-badge');
+    expect(badge.textContent).toContain('1 edit applied');
+  });
 });
