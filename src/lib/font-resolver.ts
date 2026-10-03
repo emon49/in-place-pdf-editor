@@ -36,9 +36,9 @@ const stripPostScript = (part: string): string => part.replace(/(PSMT|MT|PS)$/, 
 
 function spaceCamelCase(name: string): string {
   let guarded = name;
-  PROTECTED_COMPOUNDS.forEach((word, i) => (guarded = guarded.replaceAll(word, `\u0000${i}\u0000 `)));
+  PROTECTED_COMPOUNDS.forEach((word, i) => (guarded = guarded.replaceAll(word, `\uE000${i}\uE001 `)));
   const spaced = guarded.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
-  return spaced.replace(/\u0000(\d+)\u0000/g, (_, i: string) => PROTECTED_COMPOUNDS[Number(i)] ?? '');
+  return spaced.replace(/\uE000(\d+)\uE001/g, (_, i: string) => PROTECTED_COMPOUNDS[Number(i)] ?? '');
 }
 
 export interface ParsedFontName {

@@ -149,8 +149,9 @@ describe('geometry (3.4)', () => {
   });
 
   it('unions the boxes of merged fragments', () => {
-    const [run] = mergeFragments([frag('Hello', 72, 28), frag('world', 103, 30)], upright);
-    const box = runBox(run!);
+    const run = mergeFragments([frag('Hello', 72, 28), frag('world', 103, 30)], upright)[0];
+    if (!run) throw new Error('no run');
+    const box = runBox(run);
     expect(box.x).toBeCloseTo(72);
     expect(box.width).toBeCloseTo(61);
   });
