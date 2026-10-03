@@ -39,10 +39,10 @@
 
 ## 7. Text editing operations
 
-- [ ] 7.1 Wire TEXT_REPLACE: on inline editor commit, if text differs from original, push a TEXT_REPLACE. No operation if unchanged (TE-4). Verify: unit test — changed text creates op, unchanged text creates no op, op payload matches
-- [ ] 7.2 Wire OBJECT_DELETE: `Delete`/`Backspace` on a selected (non-editing) Text Line pushes OBJECT_DELETE. When inline editor is open, keys act normally (TE-7). Verify: unit test — delete with selection creates op, delete inside editor does not
-- [ ] 7.3 Wire TEXT_ADD: on add-text editor commit, push TEXT_ADD with the text, clicked position (Page Space) and inferred style (TE-8). Verify: unit test — op created with correct position and style
-- [ ] 7.4 Wire double-click on TextOverlay to open the inline editor (object-selection spec). Locked lines do not open. Selection clears on commit. Verify: unit test — double-click opens editor, locked line ignores double-click, commit clears selection
+- [x] 7.1 Wire TEXT_REPLACE: on inline editor commit, if text differs from original, push a TEXT_REPLACE. No operation if unchanged (TE-4). Verify: unit test — changed text creates op, unchanged text creates no op, op payload matches
+- [x] 7.2 Wire OBJECT_DELETE: `Delete`/`Backspace` on a selected (non-editing) Text Line pushes OBJECT_DELETE. When inline editor is open, keys act normally (TE-7). Verify: unit test — delete with selection creates op, delete inside editor does not
+- [x] 7.3 Wire TEXT_ADD: on add-text editor commit, push TEXT_ADD with the text, clicked position (Page Space) and inferred style (TE-8). Verify: unit test — op created with correct position and style
+- [x] 7.4 Wire double-click on TextOverlay to open the inline editor (object-selection spec). Locked lines do not open. Selection clears on commit. Verify: unit test — double-click opens editor, locked line ignores double-click, commit clears selection
 
 ## 8. Patches and Masks
 

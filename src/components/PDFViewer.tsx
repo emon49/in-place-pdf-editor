@@ -24,7 +24,7 @@ export interface PDFViewerProps {
   /** Overlay that needs the page's geometry; `pageIndex` is the page actually loaded, which may lag `pageIndex`. */
   renderOverlay?: (info: { geometry: PageGeometry; pageIndex: number; zoom: number }) => ReactNode;
   /** A click on the viewer that no overlay box handled (empty page space or the surround). */
-  onBackgroundClick?: () => void;
+  onBackgroundClick?: (e: MouseEvent) => void;
   /** The page finished rendering to the canvas. */
   onPageRendered?: (pageIndex: number) => void;
 }

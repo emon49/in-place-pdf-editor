@@ -146,3 +146,79 @@ describe('sidebar and overlay in the app', () => {
     expect(screen.getByRole('tab', { name: 'Text Objects' }).getAttribute('aria-selected')).toBe('true');
   });
 });
+
+describe('text editing operations (7.x)', () => {
+  beforeEach(() => {
+    editorStore.setState({ ops: [], cursor: 0 });
+  });
+
+  it('double-click opens the inline editor, locked line ignores double-click (7.4)', async () => {
+    openFakeDocument();
+    render(<App />);
+    const boxes = await screen.findAllByTestId('text-box');
+    // Double-click unlocked line opens editor
+    fireEvent.dblClick(boxes[0] as HTMLElement);
+    expect(screen.getByTestId('inline-text-editor')).toBeTruthy();
+    // Escape cancels
+    fireEvent.keyDown(screen.getByTestId('inline-text-editor'), { key: 'Escape' });
+    expect(screen.queryByTestId('inline-text-editor')).toBeNull();
+    // Double-click locked line (DRAFT) does not open editor
+    fireEvent.dblClick(boxes[2] as HTMLElement);
+    expect(screen.queryByTestId('inline-text-editor')).toBeNull();
+  });
+
+  it('commit clears selection (7.4)', async () => {
+    openFakeDocument();
+    render(<App />);
+    const boxes = await screen.findAllByTestId('text-box');
+    fireEvent.click(boxes[0] as HTMLElement);
+    expect(editorStore.getState().selection).toBe('0:0');
+    fireEvent.dblClick(boxes[0] as HTMLElement);
+    const editor = screen.getByTestId('inline-text-editor');
+    fireEvent.change(editor, { target: { value: 'New text' } });
+    fireEvent.keyDown(editor, { key: 'Enter' });
+    expect(editorStore.getState().selection).toBeNull();
+  });
+
+  it('changed text pushes TEXT_REPLACE; unchanged text pushes no op (7.1)', async () => {
+    openFakeDocument();
+    render(<App />);
+    const boxes = await screen.findAllByTestId('text-box');
+    // Edit with different text -> creates op
+    fireEvent.dblClick(boxes[0] as HTMLElement);
+    const editor = screen.getByTestId('inline-text-editor') as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: 'Updated report' } });
+    fireEvent.keyDown(editor, { key: 'Enter' });
+    const { ops, cursor } = editorStore.getState();
+    expect(cursor).toBe(1);
+    expect(ops[0]?.type).toBe('TEXT_REPLACE');
+    expect((ops[0] as { newText?: string }).newText).toBe('Updated report');
+    // Edit with same text -> no new op
+    fireEvent.dblClick((await screen.findAllByTestId('text-box'))[1] as HTMLElement);
+    const editor2 = screen.getByTestId('inline-text-editor') as HTMLTextAreaElement;
+    const originalText = editor2.value;
+    fireEvent.change(editor2, { target: { value: originalText } });
+    fireEvent.keyDown(editor2, { key: 'Enter' });
+    expect(editorStore.getState().cursor).toBe(1); // no new op
+  });
+
+  it('Delete with selection pushes OBJECT_DELETE, Delete inside editor does not (7.2)', async () => {
+    openFakeDocument();
+    render(<App />);
+    // Select a line then press Delete
+    const boxes = await screen.findAllByTestId('text-box');
+    fireEvent.click(boxes[1] as HTMLElement);
+    expect(editorStore.getState().selection).toBe('0:1');
+    fireEvent.keyDown(window, { key: 'Delete' });
+    const { ops, cursor } = editorStore.getState();
+    expect(cursor).toBe(1);
+    expect(ops[0]?.type).toBe('OBJECT_DELETE');
+    // Open editor - Delete inside it does not create an op
+    const boxes2 = await screen.findAllByTestId('text-box');
+    fireEvent.dblClick(boxes2[0] as HTMLElement);
+    const editor = screen.getByTestId('inline-text-editor');
+    const cursorBefore = editorStore.getState().cursor;
+    fireEvent.keyDown(editor, { key: 'Delete' });
+    expect(editorStore.getState().cursor).toBe(cursorBefore);
+  });
+});

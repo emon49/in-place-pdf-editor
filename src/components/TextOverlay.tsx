@@ -12,6 +12,8 @@ export interface TextOverlayProps {
   onSelect: (id: string | null) => void;
   /** Keyboard stepping through reading order (Tab / Shift+Tab). */
   onStep: (direction: 1 | -1) => void;
+  /** Double-click on an unlocked line to start editing. */
+  onDoubleClick?: (id: string) => void;
 }
 
 const CORNERS = ['-left-1 -top-1', '-right-1 -top-1', '-bottom-1 -left-1', '-bottom-1 -right-1'];
@@ -21,7 +23,7 @@ const CORNERS = ['-left-1 -top-1', '-right-1 -top-1', '-bottom-1 -left-1', '-bot
  * Boxes are real buttons so focus, keyboard operation and announcement come from the platform (design D10).
  * The container ignores the pointer so clicks on empty page space reach the viewer and clear the selection.
  */
-export function TextOverlay({ lines, geometry, zoom, selectedId, onSelect, onStep }: TextOverlayProps) {
+export function TextOverlay({ lines, geometry, zoom, selectedId, onSelect, onStep, onDoubleClick }: TextOverlayProps) {
   const refs = useRef(new Map<string, HTMLButtonElement>());
   const selected = lines.find((l) => l.id === selectedId) ?? null;
 
@@ -82,6 +84,10 @@ export function TextOverlay({ lines, geometry, zoom, selectedId, onSelect, onSte
             onClick={(event) => {
               event.stopPropagation();
               onSelect(line.id);
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              if (!locked && onDoubleClick) onDoubleClick(line.id);
             }}
             onFocus={() => {
               if (!isSelected) onSelect(line.id);
