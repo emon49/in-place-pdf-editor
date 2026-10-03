@@ -30,6 +30,9 @@ export async function buildTechSpec(): Promise<Uint8Array> {
     y -= 16;
   }
 
+  // A watermark rotated 30 degrees on the unrotated page: a Locked Object once extracted.
+  p1.drawText('DRAFT SAMPLE', { x: 190, y: 330, size: 54, font: sansBold, color: rgb(0.85, 0.85, 0.88), rotate: degrees(30) });
+
   // Page 2: /Rotate 90. Content is drawn rotated so it reads horizontally once displayed.
   // With /Rotate 90, Display (dx, dy) corresponds to Page (dy, dx) on a [0 0 612 792] page.
   const p2 = doc.addPage([612, 792]);

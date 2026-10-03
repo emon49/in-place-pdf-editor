@@ -2,6 +2,9 @@ import { StandardFonts, rgb } from 'pdf-lib';
 import { INK, MUTED, base64ToBytes, createSampleDocument, saveSample } from './common';
 import { LOGO_PNG_BASE64 } from './logo-png';
 
+/** Where the logo sits on the page (x, y, width, height), for tests. */
+export const INVOICE_LOGO = { x: 54, y: 690, width: 56, height: 56 } as const;
+
 /** Tinted header row behind text (exercises sampled-colour masks). */
 export const INVOICE_HEADER_TINT = rgb(0.86, 0.91, 0.98);
 
@@ -21,7 +24,9 @@ export async function buildInvoice(): Promise<Uint8Array> {
   const logo = await doc.embedPng(base64ToBytes(LOGO_PNG_BASE64));
   const page = doc.addPage([612, 792]);
 
-  page.drawImage(logo, { x: 54, y: 690, width: 56, height: 56 });
+  page.drawImage(logo, INVOICE_LOGO);
+  // A line drawn over the embedded image: its background is non-uniform.
+  page.drawText('LOGO', { x: 66, y: 714, size: 9, font: bold, color: rgb(1, 1, 1) });
   page.drawText('Example Co.', { x: 122, y: 722, size: 18, font: bold, color: INK });
   page.drawText('1 Placeholder Street, Sampletown 00000', { x: 122, y: 704, size: 10, font, color: MUTED });
   page.drawText('INVOICE', { x: 450, y: 722, size: 20, font: bold, color: INK });
@@ -52,6 +57,7 @@ export async function buildInvoice(): Promise<Uint8Array> {
   }
   page.drawText('Total', { x: 420, y: y - 6, size: 12, font: bold, color: INK });
   page.drawText(money(total), { x: 500, y: y - 6, size: 12, font: bold, color: INK });
+  page.drawText('Payment status: UNPAID', { x: 54, y: 104, size: 10, font: bold, color: rgb(0.8, 0.1, 0.1) });
   page.drawText('Thank you for your business. Payment due within 30 days.', { x: 54, y: 80, size: 9, font, color: MUTED });
   return saveSample(doc);
 }

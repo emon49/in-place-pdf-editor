@@ -4,6 +4,8 @@ import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/types/src/displa
 import { SAMPLES, getSample, type SampleId } from '../../src/lib/sample-documents';
 import { createPageGeometry, pageToDisplay } from '../../src/lib/coordinates';
 import { destroyDocument, loadPdfBytes } from '../../src/lib/pdf-loader';
+import { FRAGMENTED_LINE_WORDS } from '../../src/lib/samples/academic-paper';
+import { INVOICE_LOGO } from '../../src/lib/samples/invoice';
 import { NODE_PDFJS_PARAMS, nodeGetDocument } from './pdfjs-node';
 
 async function open(id: SampleId): Promise<PDFDocumentProxy> {
@@ -99,6 +101,69 @@ describe('coordinates.ts agrees with PDF.js PageViewport (4.3)', () => {
         expect(Math.abs(d.y - vy)).toBeLessThan(1e-6);
       }
     }
+    await destroyDocument(pdf);
+  });
+});
+
+/** Table directory tags of an sfnt font program (enough to check which tables a subset kept). */
+function sfntTables(bytes: Uint8Array): string[] {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const count = view.getUint16(4);
+  return Array.from({ length: count }, (_, i) =>
+    String.fromCharCode(...bytes.subarray(12 + i * 16, 16 + i * 16)),
+  );
+}
+
+describe('extraction edge cases (sample-documents spec, M1)', () => {
+  it('academic paper embeds a subset font whose program omits the name table (1.1)', async () => {
+    const bytes = await getSample('academic-paper').build();
+    const { PDFDocument, PDFName, PDFDict, PDFRawStream, decodePDFRawStream } = await import('pdf-lib');
+    const doc = await PDFDocument.load(bytes);
+    const programs: Uint8Array[] = [];
+    for (const [, obj] of doc.context.enumerateIndirectObjects()) {
+      if (!(obj instanceof PDFDict) || obj.get(PDFName.of('Type')) !== PDFName.of('FontDescriptor')) continue;
+      const ref = obj.get(PDFName.of('FontFile2'));
+      if (!ref) continue;
+      const stream = doc.context.lookup(ref);
+      if (stream instanceof PDFRawStream) programs.push(decodePDFRawStream(stream).decode());
+    }
+    expect(programs).toHaveLength(1);
+    const tables = sfntTables(programs[0] as Uint8Array);
+    expect(tables).toContain('glyf');
+    expect(tables).not.toContain('name');
+  });
+
+  it('a line is drawn as several fragments on one baseline (1.2)', async () => {
+    const pdf = await open('academic-paper');
+    const content = await (await pdf.getPage(1)).getTextContent({ disableNormalization: true });
+    const keywords = content.items.filter(
+      (i): i is typeof i & { str: string; transform: number[] } =>
+        'str' in i && FRAGMENTED_LINE_WORDS.some((w) => w === i.str),
+    );
+    expect(keywords).toHaveLength(FRAGMENTED_LINE_WORDS.length);
+    expect(new Set(keywords.map((k) => k.transform[5])).size).toBe(1);
+    expect(keywords.some((k) => k.str.includes(' '))).toBe(false);
+    await destroyDocument(pdf);
+  });
+
+  it('technical spec has a rotated watermark with a skewed text matrix (1.3)', async () => {
+    const pdf = await open('tech-spec');
+    const content = await (await pdf.getPage(1)).getTextContent({ disableNormalization: true });
+    const watermark = content.items.find((i) => 'str' in i && i.str === 'DRAFT SAMPLE');
+    expect(watermark && 'transform' in watermark ? Math.abs(watermark.transform[1] ?? 0) : 0).toBeGreaterThan(1);
+    await destroyDocument(pdf);
+  });
+
+  it('invoice has a line drawn over the embedded image (1.3)', async () => {
+    const pdf = await open('invoice');
+    const content = await (await pdf.getPage(1)).getTextContent({ disableNormalization: true });
+    const line = content.items.find((i) => 'str' in i && i.str === 'LOGO');
+    if (!line || !('transform' in line)) throw new Error('image line missing');
+    const [x, y] = [line.transform[4] ?? 0, line.transform[5] ?? 0];
+    expect(x).toBeGreaterThanOrEqual(INVOICE_LOGO.x);
+    expect(x + line.width).toBeLessThanOrEqual(INVOICE_LOGO.x + INVOICE_LOGO.width);
+    expect(y).toBeGreaterThanOrEqual(INVOICE_LOGO.y);
+    expect(y + line.height).toBeLessThanOrEqual(INVOICE_LOGO.y + INVOICE_LOGO.height);
     await destroyDocument(pdf);
   });
 });

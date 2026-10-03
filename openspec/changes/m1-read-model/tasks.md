@@ -2,10 +2,10 @@
 
 ## 1. Sample and fixture coverage (UP-2)
 
-- [ ] 1.1 Embed a subset font in the Academic Research Paper sample (Liberation Sans from `pdfjs-dist/standard_fonts` via `@pdf-lib/fontkit`, loaded in the lazy samples chunk); verify an integration test finds a page font whose descriptor carries a `FontFile2` and whose program omits the `name` table
-- [ ] 1.2 Draw one Academic Research Paper line as several fragments positioned word by word with no space characters; verify a test asserts the raw text content returns more than one fragment for that baseline
-- [ ] 1.3 Add a rotated watermark text run to the Technical Spec sample and a line over the Invoice's embedded image; verify tests assert a non-zero skew in the watermark's text matrix and that the image line's box overlaps the image's bounds
-- [ ] 1.4 Re-run the determinism and no-personal-data checks after the sample changes; verify `npm run test` still shows byte-identical output for all three samples and the fictional-content assertions pass
+- [x] 1.1 Embed a subset font in the Academic Research Paper sample (Liberation Sans from `pdfjs-dist/standard_fonts` via `@pdf-lib/fontkit`, loaded in the lazy samples chunk); verify an integration test finds a page font whose descriptor carries a `FontFile2` and whose program omits the `name` table
+- [x] 1.2 Draw one Academic Research Paper line as several fragments positioned word by word with no space characters; verify a test asserts the raw text content returns more than one fragment for that baseline
+- [x] 1.3 Add a rotated watermark text run to the Technical Spec sample and a line over the Invoice's embedded image; verify tests assert a non-zero skew in the watermark's text matrix and that the image line's box overlaps the image's bounds
+- [x] 1.4 Re-run the determinism and no-personal-data checks after the sample changes; verify `npm run test` still shows byte-identical output for all three samples and the fictional-content assertions pass
 
 ## 2. Page model plumbing
 
