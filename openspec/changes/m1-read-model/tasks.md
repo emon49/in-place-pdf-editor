@@ -9,9 +9,9 @@
 
 ## 2. Page model plumbing
 
-- [ ] 2.1 Add a lazily created pdf-lib handle for the open document to the document registry, over a copy of the original bytes, released with the document; verify a unit test shows the handle is created only on first request, reused on the second, and that releasing the document releases it
-- [ ] 2.2 Add the page-model cache keyed by document id and page index with `idle | extracting | ready | failed` status, plus the `selection` store slice; verify unit tests cover caching, status transitions, and that replacing the document clears both cache and selection
-- [ ] 2.3 Wire extraction to run when a page becomes active, not before; verify a unit test with a stubbed extractor shows a 100-page document extracts only page 1, and that returning to page 1 does not extract it again
+- [x] 2.1 Add a lazily created pdf-lib handle for the open document to the document registry, over a copy of the original bytes, released with the document; verify a unit test shows the handle is created only on first request, reused on the second, and that releasing the document releases it
+- [x] 2.2 Add the page-model cache keyed by document id and page index with `idle | extracting | ready | failed` status, plus the `selection` store slice; verify unit tests cover caching, status transitions, and that replacing the document clears both cache and selection
+- [x] 2.3 Wire extraction to run when a page becomes active, not before; verify a unit test with a stubbed extractor shows a 100-page document extracts only page 1, and that returning to page 1 does not extract it again
 
 ## 3. Text Lines: fragments, merging, order, identity
 
