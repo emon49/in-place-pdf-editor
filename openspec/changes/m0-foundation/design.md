@@ -30,7 +30,8 @@ Vite gives fast dev builds, native Web Worker and `new URL(..., import.meta.url)
 ### D2. PDF.js configured for a strict CSP and offline use
 - The worker is loaded from our own origin (`pdfjs-dist/build/pdf.worker.min.mjs` via `new URL(..., import.meta.url)`) as a module worker.
 - `cMapUrl`, `standardFontDataUrl` and `wasmUrl` point to copies of `pdfjs-dist`'s `cmaps/`, `standard_fonts/` and `wasm/` served from our origin, and are precached. Without them, CJK/CID documents and non-embedded Standard 14 fonts would fail offline or try to reach a CDN.
-- `isEvalSupported: false` keeps PDF.js from needing `'unsafe-eval'`.
+- Use the `pdfjs-dist/legacy` build (main thread and worker). The modern PDF.js 6 build relies on very recent built-ins (e.g. `Map.prototype.getOrInsertComputed`) that current stable browsers do not all ship; the legacy build polyfills them. *(Found during implementation.)*
+- PDF.js 6 no longer uses `eval`, so no `isEvalSupported` option or `'unsafe-eval'` is needed.
 *Alternative:* load the worker from a CDN. Rejected because it breaks CSP and offline use.
 
 ### D3. CSP defined once, delivered three ways
