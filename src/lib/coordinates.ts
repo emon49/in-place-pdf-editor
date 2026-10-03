@@ -57,6 +57,12 @@ export function normalizeBox([ax, ay, bx, by]: Box): Box {
   return [Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)];
 }
 
+/** Geometry of a PDF.js page (`view` is the visible box, `rotate` the page rotation). */
+export function pageGeometryOf(page: { readonly view: readonly number[]; readonly rotate: number }): PageGeometry {
+  const [x0 = 0, y0 = 0, x1 = 0, y1 = 0] = page.view;
+  return createPageGeometry([x0, y0, x1, y1], page.rotate);
+}
+
 export function createPageGeometry(box: Box, rotate: number): PageGeometry {
   return { box: normalizeBox(box), rotate: normalizeRotation(rotate) };
 }

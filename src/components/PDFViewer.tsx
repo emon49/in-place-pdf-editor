@@ -21,6 +21,12 @@ export interface PDFViewerProps {
   onFitZoom: (zoom: number) => void;
   /** Extra content rendered over the page (overlay layers in later milestones). */
   children?: ReactNode;
+  /** Overlay that needs the page's geometry; `pageIndex` is the page actually loaded, which may lag `pageIndex`. */
+  renderOverlay?: (info: { geometry: PageGeometry; pageIndex: number; zoom: number }) => ReactNode;
+  /** A click on the viewer that no overlay box handled (empty page space or the surround). */
+  onBackgroundClick?: () => void;
+  /** The page finished rendering to the canvas. */
+  onPageRendered?: (pageIndex: number) => void;
 }
 
 interface LoadedPage {
@@ -66,7 +72,7 @@ const isCancellation = (e: unknown) =>
  * Layer 0: renders the active page to a high-DPI canvas (VW-1).
  * Renders are cancellable and double-buffered: the previous canvas stays until the new one is complete.
  */
-export function PDFViewer({ getPage, pageIndex, pageCount, zoom, fitMode, onFitZoom, children }: PDFViewerProps) {
+export function PDFViewer({ getPage, pageIndex, pageCount, zoom, fitMode, onFitZoom, children, renderOverlay, onBackgroundClick, onPageRendered }: PDFViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasHostRef = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState<LoadedPage | null>(null);
@@ -74,6 +80,20 @@ export function PDFViewer({ getPage, pageIndex, pageCount, zoom, fitMode, onFitZ
   const [failed, setFailed] = useState(false);
   const dpr = useDevicePixelRatio();
   const viewerSize = useElementSize(scrollRef);
+  // Kept in a ref so a new callback identity never restarts the page render effect.
+  const onRenderedRef = useRef(onPageRendered);
+  useEffect(() => {
+    onRenderedRef.current = onPageRendered;
+  }, [onPageRendered]);
+
+  // Clicks that reach the viewer (boxes stop propagation) are background clicks. A listener rather than a
+  // JSX handler: the keyboard equivalent is Escape, handled by the overlay.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !onBackgroundClick) return;
+    el.addEventListener('click', onBackgroundClick);
+    return () => el.removeEventListener('click', onBackgroundClick);
+  }, [onBackgroundClick]);
 
   // Load the active page; a newer page index supersedes pending loads.
   useEffect(() => {
@@ -118,6 +138,7 @@ export function PDFViewer({ getPage, pageIndex, pageCount, zoom, fitMode, onFitZ
         canvasHostRef.current?.replaceChildren(canvas);
         setRenderedIndex(loaded.index);
         setFailed(false);
+        onRenderedRef.current?.(loaded.index);
       },
       (e: unknown) => {
         if (active && !isCancellation(e)) setFailed(true);
@@ -153,6 +174,7 @@ export function PDFViewer({ getPage, pageIndex, pageCount, zoom, fitMode, onFitZ
         >
           <div ref={canvasHostRef} className="absolute inset-0" />
           {children}
+          {loaded && renderOverlay?.({ geometry: loaded.geometry, pageIndex: loaded.index, zoom })}
         </div>
       )}
       {failed && (

@@ -21,7 +21,7 @@
 - [x] 3.4 Implement Text Line geometry (baseline origin, glyph bounding box from ascent and descent, stored in Page Space with non-negative width and height); verify unit tests on a 12 pt line at (72, 700) and a property test that boxes never have negative extents
 - [x] 3.5 Implement locked detection (skew after removing page rotation, vertical writing, Type 3) with reason codes, and ensure locked fragments never merge; verify unit tests distinguish a rotated run on an unrotated page from horizontal text on a `/Rotate 90` page
 - [x] 3.6 Implement display-space reading order and `"<pageIndex>:<sequence>"` identity; verify unit tests cover ordering on a rotated page and an integration test shows identifiers are unchanged when a page is extracted twice
-- [ ] 3.7 Contain extraction failures per page (status `failed`, page still rendered, other pages unaffected); verify a unit test with a throwing extractor asserts the status and that the next page extracts normally
+- [x] 3.7 Contain extraction failures per page (status `failed`, page still rendered, other pages unaffected); verify a unit test with a throwing extractor asserts the status and that the next page extracts normally
 
 ## 4. Font detection (TY-1, TY-2, TY-4, TY-5, TY-7)
 
@@ -43,22 +43,22 @@
 
 - [x] 6.1 Implement the dedicated scale-1 off-screen page render used for sampling; verify a unit test shows it is created once per page and is independent of the viewer's zoom
 - [x] 6.2 Implement ring sampling with a dominant colour and a uniformity ratio (non-uniform below 90% in the dominant bucket); verify unit tests over synthetic pixel data cover a flat fill, a tinted header and a photographic ring
-- [ ] 6.3 Schedule sampling after the visible render in an idle callback, updating the page model without a re-render and leaving lines usable while pending; verify a test asserts lines are selectable before sampling completes and that no page re-render is triggered when results arrive
+- [x] 6.3 Schedule sampling after the visible render in an idle callback, updating the page model without a re-render and leaving lines usable while pending; verify a test asserts lines are selectable before sampling completes and that no page re-render is triggered when results arrive
 
 ## 7. Selection overlay (VW-2, VW-3, VW-8, VW-9)
 
-- [ ] 7.1 Implement `TextOverlay` inside the existing viewer children slot, one button per Text Line positioned through `coordinates.ts`, with pointer-events off on the container; verify component tests assert box positions at 100% and 250% zoom and on a `/Rotate 90` page
-- [ ] 7.2 Implement hover and selection states with the selection ring and corner indicators, single selection, and clearing on click of empty space; verify component tests cover selecting, replacing a selection and clearing
-- [ ] 7.3 Implement locked styling, the explanatory tooltip and selectable-but-locked behaviour; verify a component test asserts the rotated-text wording and that a locked line can still be selected
-- [ ] 7.4 Implement keyboard selection (next and previous in reading order, Escape to clear, scroll into view) and the accessible name carrying the line's text and locked reason; verify component tests for stepping, Escape, and the announced name, and that `npm run lint` passes the accessibility rules
-- [ ] 7.5 Clear the selection on page change and document change, and show the "mask may be visible" warning for a non-uniform background; verify component tests for both
+- [x] 7.1 Implement `TextOverlay` inside the existing viewer children slot, one button per Text Line positioned through `coordinates.ts`, with pointer-events off on the container; verify component tests assert box positions at 100% and 250% zoom and on a `/Rotate 90` page
+- [x] 7.2 Implement hover and selection states with the selection ring and corner indicators, single selection, and clearing on click of empty space; verify component tests cover selecting, replacing a selection and clearing
+- [x] 7.3 Implement locked styling, the explanatory tooltip and selectable-but-locked behaviour; verify a component test asserts the rotated-text wording and that a locked line can still be selected
+- [x] 7.4 Implement keyboard selection (next and previous in reading order, Escape to clear, scroll into view) and the accessible name carrying the line's text and locked reason; verify component tests for stepping, Escape, and the announced name, and that `npm run lint` passes the accessibility rules
+- [x] 7.5 Clear the selection on page change and document change, and show the "mask may be visible" warning for a non-uniform background; verify component tests for both
 
 ## 8. Sidebar and Text Objects tab (PRD §7.2)
 
-- [ ] 8.1 Implement the collapsible `Sidebar` shell with tab semantics, shown only when a document is open, hiding tabs that have no content; verify component tests cover collapse and reopen, keyboard tab navigation and the no-document case
-- [ ] 8.2 Implement the Text Objects tab listing lines in reading order with text, family, size and colour swatch, locked markers, the empty-page message and the detection-in-progress state; verify component tests for each of those states
-- [ ] 8.3 Wire two-way selection between list and overlay, scrolling the selected row into view, and virtualise the list above a threshold; verify component tests for both directions and a test with a thousand synthetic lines asserting only a bounded number of rows render
-- [ ] 8.4 Confirm the viewer's fit modes still work at the narrower width and when the sidebar collapses; verify a component test asserts fit-to-width recomputes zoom when the sidebar is collapsed
+- [x] 8.1 Implement the collapsible `Sidebar` shell with tab semantics, shown only when a document is open, hiding tabs that have no content; verify component tests cover collapse and reopen, keyboard tab navigation and the no-document case
+- [x] 8.2 Implement the Text Objects tab listing lines in reading order with text, family, size and colour swatch, locked markers, the empty-page message and the detection-in-progress state; verify component tests for each of those states
+- [x] 8.3 Wire two-way selection between list and overlay, scrolling the selected row into view, and virtualise the list above a threshold; verify component tests for both directions and a test with a thousand synthetic lines asserting only a bounded number of rows render
+- [x] 8.4 Confirm the viewer's fit modes still work at the narrower width and when the sidebar collapses; verify a component test asserts fit-to-width recomputes zoom when the sidebar is collapsed
 
 ## 9. End-to-end verification
 

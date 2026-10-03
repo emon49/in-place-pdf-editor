@@ -79,6 +79,8 @@ export interface EditorDeps {
   /** Builds a page's read model. Without it no extraction happens (the store works without a PDF engine). */
   readonly extractPage?: (documentId: string, pageIndex: number) => Promise<PageModel>;
   readonly pageModelCache?: PageModelCache;
+  /** Called when a document is released, so per-document caches kept elsewhere can be dropped. */
+  readonly onDocumentReleased?: (documentId: string) => void;
 }
 
 export const INITIAL_VIEW: ViewState = { pageIndex: 0, zoom: 1, fitMode: 'width' };
@@ -141,6 +143,7 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
         }));
         if (previous) {
           cache.clear(previous.id);
+          deps.onDocumentReleased?.(previous.id);
           await deps.registry.release(previous.id);
         }
         void get().ensurePageModel(0);
