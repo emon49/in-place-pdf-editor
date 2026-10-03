@@ -34,10 +34,17 @@ Shared language for the PDF In-Place Editor. Use these terms in code, specs (Ope
 | **Sampled Background** | The dominant color of rendered pixels in a ring just outside an object's box, used as the Mask fill. |
 | **Position A / Position B** | A = where an object originally was (masked). B = where it now renders. "Dual-location masking" means both are handled in preview and export. |
 | **Patch** | The re-rendered appearance of an edited, moved or added object at Position B (Layer 1). |
-| **Bundled Font** | One of the open-licence fonts shipped with the app (Liberation Sans, Liberation Serif, Liberation Mono × Regular/Bold/Italic/Bold-Italic). Used for every Patch in both preview and export. See ADR-0001. |
-| **Font Class** | `sans` / `serif` / `mono`: the category an Original Font is mapped to in order to choose a Bundled Font. |
-| **Original Font** | The font name detected in the PDF (subset prefix stripped). Shown to the user for information; not used to render Patches. |
-| **Glyph Coverage** | The set of characters the Bundled Fonts can draw (Latin, Latin Extended, Greek, Cyrillic). Characters outside it block commit with an inline warning. |
+| **Original Font** | The font a Text Line uses in the PDF: normalized family name (subset prefix, style and PostScript suffixes stripped), plus its embedded program, encoding and `fsType` when present. |
+| **Embedded Original Font** | The Original Font's program already inside the PDF. Tier 1 of the chain: reused by referencing the existing font resource, never re-embedded. |
+| **Font Resolution Chain** | The ordered search for the font that renders an edited line: (1) Embedded Original Font, (2) exact family from the Font Catalog or, with consent, Google Fonts, (3) Metric-Compatible Substitute, (4) Fallback Font. The first font that can draw every character and is licence-permitted wins. See ADR-0007. |
+| **Resolved Font** | The single font the chain picked for a line. Derived (never stored); used identically by preview and export. |
+| **Font Catalog** | Curated manifest of open-licence (OFL/Apache) families self-hosted on our own site, loaded lazily and cached offline. |
+| **Font Download Consent** | The user's per-family (or "always") permission to fetch a font from Google Fonts. Only the family name is sent. |
+| **Metric-Compatible Substitute** | An open font with the same character widths as a commercial original (e.g. Carlito for Calibri, Caladea for Cambria, Liberation Sans for Arial). |
+| **Fallback Font** | Liberation Sans / Serif / Mono × 4 styles, always available offline, chosen by Font Class. Formerly "Bundled Font" (ADR-0001, superseded). |
+| **Font Class** | `sans` / `serif` / `mono`: the category an Original Font is mapped to in order to choose a Fallback Font. |
+| **Drawable** | A character is drawable by a font when the font's encoding maps it to a code and the (possibly subset) program has a glyph for it. Checked per line, whole line, one face. |
+| **Glyph Coverage** | Guaranteed: what the Fallback Fonts can draw (Latin, Latin Extended, Greek, Cyrillic). Characters no chain font can draw block commit with an inline warning. |
 | **Fit Mode** | How a replacement image fills its box: `contain` (default), `cover`, `fill`. |
 
 ## Coordinates

@@ -12,7 +12,7 @@ Guidance for Claude Code when working in this repository.
 - Tailwind CSS + Lucide Icons
 - `pdfjs-dist` for rendering and text/font/image extraction
 - `pdf-lib` + `@pdf-lib/fontkit` for export (masks, text with bundled fonts, image embedding)
-- Bundled Liberation Sans/Serif/Mono fonts (OFL) for all edited text (ADR-0001)
+- Font Resolution Chain for edited text (ADR-0007): embedded original font → self-hosted open fonts / consented Google Fonts → metric-compatible substitutes → Liberation
 - IndexedDB for local session autosave; static site + PWA with strict CSP (ADR-0005)
 - Zustand for state
 - Vite, Vitest, Playwright (assumed tooling; adjust if the repo differs)
@@ -48,7 +48,7 @@ Key rules:
 - **Editable unit is the merged Text Line** (ADR-0002), not the raw PDF.js run.
 - **Dual-location masking.** A moved, edited or deleted object masks its original position (A) with the sampled background color and renders at its new position (B). Both preview and export must do this (ADR-0004).
 - **Preview and export share geometry.** Compute font size, line height, spacing and positions once (extractor modules) and reuse them in the viewer and `pdf-exporter.ts`. Do not duplicate the math.
-- **Client-side only.** Never add network calls that send document data. No analytics on document content.
+- **Client-side only.** Never add network calls that send document data. No analytics on document content. The single allowed third-party request is a consented Google Fonts download carrying only a family name (ADR-0007).
 
 ## Suggested Structure
 
@@ -86,10 +86,11 @@ tests/           unit + e2e
 
 - Font size comes from vertical matrix scale (`√(c²+d²)` / `|d|`) and `item.height`. Do **not** use horizontal scale for size.
 - Strip subset prefixes (`ABCDEF+Times` becomes `Times`).
-- Edited/added text renders with the bundled Liberation font for its font class (sans/serif/mono) in **both** preview and export (ADR-0001). `fontObj.loadedName` is for detection/display only. Show "Original: X → Exported as Y" when they differ.
-- Do not use Standard 14 fonts for patches.
+- Edited/added text uses one **Resolved Font** per line from the Font Resolution Chain (ADR-0007): (1) the embedded original font if every character is drawable and `fsType` allows editing (preview via `fontObj.loadedName`, export by referencing the existing font resource); (2) exact open family from the self-hosted catalog or consented Google Fonts; (3) metric-compatible substitute; (4) Liberation by font class. Never mix fonts within a line.
+- Resolve in `font-resolver.ts` only; preview and export must use the same result. Explain non-original results in the UI.
+- Preserve size, `Tz`, `Tc`, `Tw`, `Ts`, line height, rendering mode and color in every tier.
 - Text color comes from the operator-list fill color, with pixel sampling as fallback. Mask color is sampled from pixels around the object (`pdf-color-extractor.ts`); keep sampling off the main render path where possible.
-- Glyph coverage is Latin, Latin Extended, Greek and Cyrillic; block commit of other characters with a warning.
+- Guaranteed glyph coverage is Latin, Latin Extended, Greek and Cyrillic; block commit of characters no chain font can draw.
 
 ## Code Conventions
 
@@ -116,7 +117,8 @@ tests/           unit + e2e
 ## Known Limitations (do not silently "fix" by changing scope)
 
 - Whiteout hides text visually but does **not** remove it from the PDF; it is not secure redaction.
-- Edits are per text run; surrounding paragraph text does not reflow.
+- Edits are per Text Line; surrounding paragraph text does not reflow.
+- Commercial fonts that are not embedded (or lack typed glyphs) export as metric-compatible substitutes, not the exact face.
 - Scripts outside Latin/Greek/Cyrillic are not supported (no RTL or complex shaping).
 - Masks use one sampled solid color; on images or gradients they may be visible (warn the user).
 - Encrypted PDFs are blocked (ADR-0006). Single selection only; no multi-select.

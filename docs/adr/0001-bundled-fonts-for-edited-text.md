@@ -1,6 +1,6 @@
 # ADR-0001: Bundled metric-compatible fonts for all edited text
 
-- **Status:** Accepted (2026-10-03)
+- **Status:** Superseded by ADR-0007 (2026-10-03). Liberation fonts remain as tier 4 of the Font Resolution Chain.
 - **Requirements:** TY-5, TY-6, TY-8, EX-6
 
 ## Context

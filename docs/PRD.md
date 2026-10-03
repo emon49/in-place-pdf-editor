@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| **Status** | Draft v0.2 (decisions from requirements review, 2026-10-03) |
+| **Status** | Draft v0.3 (font resolution chain adopted, 2026-10-03) |
 | **Date** | 2026-10-03 |
 | **Source** | `featurelist.md` (Complete Feature List & Architecture Specification) |
 | **Type** | 100% client-side web application (no backend), static site + PWA |
 | **Glossary** | `CONTEXT.md` (use these terms in specs and code) |
-| **Decisions** | `docs/adr/` (ADR-0001 to ADR-0006) |
+| **Decisions** | `docs/adr/` (ADR-0002 to ADR-0007; ADR-0001 superseded) |
 
 ---
 
@@ -28,17 +28,18 @@ Users need a quick, private way to fix a typo, change a number, add or remove a 
 ## 3. Goals and Non-Goals
 
 ### Goals
-1. Edit existing text in place, preserving font size, line height, letter spacing and color as closely as possible.
+1. Edit existing text in place, **preserving every property of the original text**: font family (the exact embedded font whenever possible), size, height, spacing, scaling, rise, rendering mode and color.
 2. Add and delete text; move text and images; replace, resize and delete images, all with immediate visual feedback.
 3. Provide undo/redo and an itemized, revertible edit history.
-4. Export a valid PDF whose edited content **matches the preview exactly** (same fonts, same geometry).
-5. Run fully client-side: no uploads, no accounts, no server; works offline after first visit.
+4. Export a valid PDF whose edited content **matches the preview exactly** (same Resolved Font, same geometry).
+5. Run fully client-side: no uploads, no accounts, no server; works offline after first visit (an optional, consented Google Fonts download is the only third-party request).
 6. Be usable without documentation (familiar toolbar, sidebar, properties panel).
 
 ### Non-Goals (v1)
 - Editing PDF content streams at the operator level (true text reflow inside the original stream).
 - Paragraph reflow: editing one line never moves neighbouring lines.
-- Reusing or re-embedding the PDF's original fonts for edited text (see ADR-0001).
+- Extracting an original font into a *different* document, or using Type 3 / vertical-writing fonts for edits.
+- Exact matches for commercial fonts that are not embedded in the PDF (metric-compatible substitutes are used instead).
 - Editing rotated or skewed text (displayed, but locked).
 - Multi-select and batch operations.
 - Encrypted or password-protected PDFs (blocked, see ADR-0006).
@@ -79,9 +80,9 @@ The editor composes **five visual layers** over a shared page coordinate space:
 ### Core principles
 - **Non-destructive:** the Original Document is immutable; edits are an append-only Operation Log (ADR-0003).
 - **Derived preview:** `previewDocument = apply(operationLog[0..cursor], originalDocument)`, a pure function.
-- **Preview equals export:** Patches use the same Bundled Fonts and the same computed geometry in preview and export (ADR-0001).
+- **Preview equals export:** each Patch uses one Resolved Font from the Font Resolution Chain and the same computed geometry in preview and export (ADR-0007).
 - **Single source of truth for geometry:** extractor modules compute metrics once; viewer and `pdf-exporter.ts` reuse them.
-- **Client-only:** PDF.js for rendering/extraction, pdf-lib + fontkit for export, IndexedDB for the local Session, strict CSP.
+- **Client-only:** PDF.js for rendering/extraction, pdf-lib + fontkit for export, IndexedDB for the local Session, strict CSP. The only third-party request is an opt-in Google Fonts download that sends a family name, never document data.
 
 ### Tech stack
 | Concern | Choice |
@@ -90,14 +91,14 @@ The editor composes **five visual layers** over a shared page coordinate space:
 | Styling | Tailwind CSS + Lucide Icons |
 | Rendering and extraction | `pdfjs-dist` |
 | Export / modification | `pdf-lib` + `@pdf-lib/fontkit` (font embedding) |
-| Fonts | Liberation Sans / Serif / Mono (OFL), 4 styles each, bundled |
+| Fonts | Font Resolution Chain (ADR-0007): embedded original → self-hosted Font Catalog / consented Google Fonts → metric-compatible substitutes → Liberation Sans/Serif/Mono |
 | State | Zustand |
 | Persistence | IndexedDB (local Session autosave) |
 | Delivery | Static hosting + service worker (PWA) |
 | Tooling | Vite, Vitest, Playwright |
 
 ### Planned modules
-`PDFViewer.tsx`, `InlineTextEditor.tsx`, `Header.tsx`, `Sidebar.tsx`, `PropertiesPanel.tsx`, `PDFUploader.tsx`, `ExportModal.tsx`, `ShortcutsModal.tsx`, `editorStore.ts`, `pdf-objects.ts`, `pdf-text-extractor.ts` (run → Text Line merging), `font-resolver.ts` (Original Font → Font Class → Bundled Font), `font-style-extractor.ts`, `pdf-color-extractor.ts` (operator-list fill color, background sampling), `pdf-image-extractor.ts`, `image-replacement-engine.ts`, `text-replacement-engine.ts`, `text-layout.ts` (wrapping, shared by preview and export), `coordinates.ts` (single Page ↔ Display ↔ Screen helper), `session-store.ts` (IndexedDB), `pdf-exporter.ts`, `sample-documents.ts`.
+`PDFViewer.tsx`, `InlineTextEditor.tsx`, `Header.tsx`, `Sidebar.tsx`, `PropertiesPanel.tsx`, `PDFUploader.tsx`, `ExportModal.tsx`, `ShortcutsModal.tsx`, `editorStore.ts`, `pdf-objects.ts`, `pdf-text-extractor.ts` (run → Text Line merging), `font-resolver.ts` (Font Resolution Chain → Resolved Font), `font-catalog.ts` (catalog manifest, substitute table, Google Fonts name index), `font-encoder.ts` (Unicode → original font codes, glyph-coverage checks), `font-fetcher.ts` (consented download + device cache), `font-style-extractor.ts`, `pdf-color-extractor.ts` (operator-list fill color, background sampling), `pdf-image-extractor.ts`, `image-replacement-engine.ts`, `text-replacement-engine.ts`, `text-layout.ts` (wrapping, shared by preview and export), `coordinates.ts` (single Page ↔ Display ↔ Screen helper), `session-store.ts` (IndexedDB), `pdf-exporter.ts`, `sample-documents.ts`.
 
 ## 6. Functional Requirements
 
@@ -119,7 +120,7 @@ Priority: **P0** = required for MVP, **P1** = required for v1.0, **P2** = nice t
 | VW-3 | Show hover state, active selection ring and corner indicators on selected objects | P0 |
 | VW-4 | Highlight search matches in real time | P1 |
 | VW-5 | Show selection borders, move/resize handles and replacement controls over Image Objects (Layer 3) | P0 |
-| VW-6 | Render Patches in place using the Bundled Font, with exact size, line height, letter spacing and color (Layer 1) | P0 |
+| VW-6 | Render Patches in place using the Resolved Font, with exact size, line height, letter spacing, scaling and color (Layer 1) | P0 |
 | VW-7 | Render Masks filled with the Sampled Background color at Position A of every edited, moved or deleted object (ADR-0004) | P0 |
 | VW-8 | Rotated or skewed Text Runs are shown as Locked Objects (not editable) with an explanatory tooltip | P0 |
 | VW-9 | Show a "mask may be visible" warning on objects whose background is non-uniform | P1 |
@@ -134,8 +135,8 @@ Priority: **P0** = required for MVP, **P1** = required for v1.0, **P2** = nice t
 | TE-5 | "Revert to Original" restores the object's original state (recorded as `REVERT`) | P0 |
 | TE-6 | **Overflow:** text wider than the original line extends rightward and wraps at the Wrap Margin (`pageWidth − 40 pt`); extra lines stack downward at the original line height. Neighbours are not reflowed; show a "text overlaps other content" hint when the Patch intersects other objects | P0 |
 | TE-7 | **Delete text:** `Delete`/`Backspace` on a selected Text Line (or a toolbar/panel button) creates `OBJECT_DELETE`; the original is masked | P0 |
-| TE-8 | **Add text:** an "Add text" tool; clicking empty page space opens the inline editor and commit creates `TEXT_ADD` with default style (Liberation Sans, 12 pt, black) or the last-used style | P0 |
-| TE-9 | Block commit and show an inline warning when typed characters are outside Glyph Coverage | P0 |
+| TE-8 | **Add text:** an "Add text" tool; clicking empty page space opens the inline editor and commit creates `TEXT_ADD` with the style of the nearest Text Line above it (falling back to Liberation Sans, 12 pt, black), or the last-used style | P0 |
+| TE-9 | Block commit and show an inline warning when no font in the Font Resolution Chain can draw a typed character | P0 |
 
 ### 6.4 Move, Resize and Delete
 | ID | Requirement | Priority |
@@ -157,14 +158,17 @@ Priority: **P0** = required for MVP, **P1** = required for v1.0, **P2** = nice t
 | TY-2 | Compute horizontal scaling (`Tz`) from non-square matrices | P1 |
 | TY-3 | Text color from the content-stream fill color (PDF.js operator list); fall back to pixel sampling when unresolved (ADR-0004) | P0 |
 | TY-4 | Strip font subset prefixes (e.g. `BWODTG+Times` → `Times`) to get the Original Font | P0 |
-| TY-5 | Classify the Original Font into a Font Class (`sans`/`serif`/`mono`) plus bold/italic, using name heuristics and font descriptor flags | P0 |
-| TY-6 | Render every Patch with the corresponding Bundled Font in preview (via `@font-face`) **and** export. `fontObj.loadedName` is used only for detection/display (ADR-0001) | P0 |
+| TY-5 | Normalize the Original Font family (aliases, style/PostScript suffixes) and classify it into a Font Class (`sans`/`serif`/`mono`) plus bold/italic, using name heuristics and font descriptor flags | P0 |
+| TY-6 | Resolve one font per edited/added line with the **Font Resolution Chain** (ADR-0007): (1) Embedded Original Font if it covers every character and its `fsType` allows editing; (2) exact family from the self-hosted Font Catalog or, with consent, Google Fonts; (3) metric-compatible substitute; (4) Liberation by Font Class. Preview and export use the same Resolved Font | P0 |
 | TY-7 | Compute letter-spacing (`charSpacing`) and line-height ratios from glyph advances | P1 |
-| TY-8 | Export embeds the Bundled Font via `@pdf-lib/fontkit` (subset on embed). Standard 14 fonts are not used for Patches | P0 |
-| TY-9 | User overrides: font family (the 3 Bundled families), size, bold, italic, color (`TEXT_STYLE_CHANGE`) | P0 |
+| TY-8 | Export: tier 1 references the page's existing font resource and writes codes in the font's own encoding (no re-embedding); tiers 2–4 embed via `@pdf-lib/fontkit` (subset on embed). Standard 14 fonts are only used when the original itself is a non-embedded Standard 14 reference | P0 |
+| TY-9 | User overrides: font family (Original Font when eligible, matched family, Font Catalog families, Liberation), size, bold, italic, color (`TEXT_STYLE_CHANGE`) | P0 |
 | TY-10 | Extract a document color palette to offer as presets in the color picker | P2 |
-| TY-11 | Glyph Coverage = Latin, Latin Extended, Greek, Cyrillic (what Liberation fonts provide) | P0 |
-| TY-12 | Properties Panel shows "Original: <font> → Exported as <Bundled Font>" whenever they differ | P0 |
+| TY-11 | Guaranteed Glyph Coverage = Latin, Latin Extended, Greek, Cyrillic (tier 4, always available); higher tiers may cover more | P0 |
+| TY-12 | Properties Panel shows the Resolved Font and why, e.g. "Original font" or "Original font lacks 'é' → using Carlito", whenever it is not the original | P0 |
+| TY-13 | Google Fonts download only after consent (per family, or "always" in local settings); sends only the family name; uses an offline name index for matching; caches files on the device; skipped offline | P0 |
+| TY-14 | Whole line, one face: if the original font lacks any typed character, the whole line uses the next font in the chain that covers all of it; fonts are never mixed within a line | P0 |
+| TY-15 | Preserve word spacing (`Tw`), text rise (`Ts`) and rendering mode (fill/stroke/fill+stroke) of the original line in preview and export | P1 |
 
 ### 6.6 Image Extraction and Replacement
 | ID | Requirement | Priority |
@@ -210,12 +214,13 @@ File upload and sample loader; "Add text" tool; undo/redo with disabled states a
 - **History:** itemized changelog with timestamps and a per-item revert button (appends `REVERT`).
 
 ### 7.3 Right properties panel
-- "Preserving Original Style" card: Original Font, Font Class, weight, point size, color badge, and "Exported as <Bundled Font>" note when they differ.
+- "Preserving Original Style" card: Original Font, Resolved Font and the tier it came from, weight, point size, color badge, and the reason when the Resolved Font is not the original (TY-12).
 - Multi-line text editor with "Revert to Original".
 - X/Y numeric inputs (points, top-left origin); W/H for images.
 - Font family selector (Sans / Serif / Mono), size stepper/input, bold/italic toggles, color picker.
 - Image: replace, fit mode, delete.
-- Warnings area: outside Glyph Coverage, overlaps other content, mask may be visible.
+- Warnings area: character not drawable, overlaps other content, mask may be visible, downloaded font missing on restore.
+- Font download prompt (TY-13): "This document uses 'X'. Download it from Google Fonts? Only the font name is sent." with Download / Not now / Always allow.
 - Advanced metadata accordion: raw PDF font resource name, subset prefix, encoding, horizontal scaling.
 
 ### 7.4 Uploader and samples
@@ -248,14 +253,24 @@ type FontClass = 'sans' | 'serif' | 'mono';
 
 interface TextStyle {
   fontClass: FontClass; bold: boolean; italic: boolean;
-  size: number; color: string; charSpacing: number; lineHeight: number; hScale: number;
+  fontFamilyOverride?: string;     // TY-9; otherwise the chain decides
+  size: number; color: string; charSpacing: number; wordSpacing: number;
+  lineHeight: number; hScale: number; rise: number; renderMode: number;
 }
+
+// Derived (never stored in operations): computed by font-resolver.ts, shared by preview and export
+type ResolvedFont =
+  | { tier: 1; source: 'original'; pdfFontRef: string; loadedName: string }
+  | { tier: 2; source: 'catalog' | 'google'; family: string; fileKey: string }
+  | { tier: 3; source: 'substitute'; family: string; fileKey: string }
+  | { tier: 4; source: 'fallback'; family: 'Liberation Sans' | 'Liberation Serif' | 'Liberation Mono' };
 
 interface TextLine {
   id: string; pageIndex: number; text: string;
   bbox: Box;                       // Page Space (points, origin bottom-left)
   style: TextStyle;
-  originalFont: { name: string; subsetPrefix?: string; loadedName?: string; encoding?: string };
+  originalFont: { name: string; family: string; subsetPrefix?: string; loadedName?: string;
+                  encoding?: string; embedded: boolean; fsType?: number; pdfFontRef: string };
   maskColor: string;               // Sampled Background
   locked: boolean;                 // rotated/skewed in v1
 }
@@ -268,33 +283,36 @@ interface TextLine {
 
 | # | Topic | Decision |
 |---|---|---|
-| 1 | Preview vs export fonts | **Resolved (ADR-0001).** Bundled Liberation fonts in both; the difference from the Original Font is shown to the user. |
+| 1 | Preview vs export fonts | **Resolved (ADR-0007, supersedes ADR-0001).** Font Resolution Chain: exact embedded original first, then open exact family, metric-compatible substitute, Liberation. Same Resolved Font in preview and export; any change is explained to the user. |
 | 2 | Whiteout is not redaction | **Unchanged.** Masks hide content visually; the original remains in the content stream. Never market as redaction. |
 | 3 | Non-white backgrounds | **Resolved (ADR-0004).** Sampled Background color; warn when non-uniform. |
-| 4 | Non-Latin scripts | **Scoped.** Latin, Latin Extended, Greek, Cyrillic; other characters blocked on commit (TE-9). |
+| 4 | Non-Latin scripts | **Scoped.** Guaranteed: Latin, Latin Extended, Greek, Cyrillic. Other characters work only if a higher-tier font covers them; otherwise blocked on commit (TE-9). No RTL/complex shaping. |
 | 5 | Text granularity | **Resolved (ADR-0002).** Merged Text Line; no reflow; long edits wrap at the Wrap Margin (TE-6). |
 | 6 | Coordinate systems | **Resolved.** Page Space storage, one conversion helper, Display Coordinates (top-left) in the UI; rotated pages supported, rotated text locked. |
 | 7 | Large files | **Open (engineering).** Rendering, sampling and export must not freeze the UI; use Web Workers where needed. |
 | 8 | Encrypted PDFs | **Resolved (ADR-0006).** Blocked with a clear error. |
 | 9 | Local data on shared devices | **New.** The Session persists in IndexedDB; surfaced in the UI with a Discard control (ADR-0005). |
+| 10 | Writing in the original font's encoding | **Open (engineering).** Reverse ToUnicode/CMap mapping for simple, CID and custom-encoded fonts is the hardest part of tier 1; needs a real-world corpus. |
+| 11 | Font licensing | **Resolved (ADR-0007).** Tier 1 honours `fsType`; tiers 2–4 use OFL/Apache/GUST fonts only, reviewed before adding to the catalog. |
 
 ## 10. Non-Functional Requirements
 
 | Area | Requirement |
 |---|---|
-| Privacy | No network calls with document data; strict CSP (`connect-src 'self'`, no third-party scripts); verified in E2E |
-| Offline | PWA service worker precaches app shell, PDF.js worker and Bundled Fonts; fully functional offline after first visit |
+| Privacy | No network calls with document data; strict CSP (`connect-src 'self'` plus Google Fonts hosts for consented font downloads only); E2E verifies no third-party request happens without consent |
+| Offline | PWA service worker precaches app shell, PDF.js worker and Liberation fonts; catalog/substitute/downloaded fonts cached on first use; fully functional offline (the chain skips the download step) |
 | Performance | First page rendered under 2 s for a 10-page, 5 MB PDF on a mid-range laptop; edit interactions under 100 ms |
 | Scale | Smooth up to 100 pages / 50 MB |
 | Browsers | Latest Chrome, Edge, Firefox, Safari (desktop) |
 | Accessibility | Keyboard-operable toolbar, panels and object selection; visible focus; ARIA labels on icon buttons |
 | Reliability | Export never mutates the source; failures (including IndexedDB quota) show actionable errors |
-| Bundle | Bundled Fonts ≈ 1–2 MB, loaded lazily on first edit and cached by the service worker |
+| Bundle | Initial load excludes fonts; Liberation (≈ 1–2 MB) precached in the background; catalog and substitute fonts (≈ 10–20 MB on the server) downloaded per family only when a document needs them |
 | Quality | TypeScript strict mode; unit tests for geometry and extraction; E2E for core flows |
 
 ## 11. User Flows
 
-1. **Edit text:** Upload or load sample → click a Text Line → double-click → edit → `Enter` → Patch appears in place (Bundled Font) → Export.
+1. **Edit text:** Upload or load sample → click a Text Line → double-click → edit → `Enter` → Patch appears in place in the original font (or the best match, with an explanation) → Export.
+1a. **Font download:** the document uses an open font that is not self-hosted → prompt to download it from Google Fonts → Download (exact family) or Not now (substitute).
 2. **Add text:** Choose "Add text" → click empty space → type → `Enter` → Export.
 3. **Delete text or image:** Select → `Delete` → the area is masked in the sampled color.
 4. **Move:** Select text or image → drag by `Move` handle (or type X/Y) → release → Position A masked, object at Position B → Export.
@@ -309,11 +327,11 @@ interface TextLine {
 | Phase | Scope |
 |---|---|
 | **M0 Foundation** | Scaffold, PWA shell + CSP, PDF.js rendering (VW-1), coordinate helper incl. rotation/CropBox (UP-4), uploader, encrypted-file error (UP-3), sample PDFs (UP-2), zoom/page navigation |
-| **M1 Read model** | Run → Text Line merging, font classification, operator-list color, background sampling, text overlay boxes, Locked Objects, Text Objects tab |
-| **M2 Edit core** | Operation Log + reducer + `REVERT`, inline editor, text replace/add/delete, Bundled Font Patches + Masks, overflow wrapping, Glyph Coverage check, undo/redo, History tab, Session autosave |
+| **M1 Read model** | Run → Text Line merging, font detection (family normalization, embedded program, `fsType`, encoding, glyph set), font classification, operator-list color, background sampling, text overlay boxes, Locked Objects, Text Objects tab |
+| **M2 Edit core** | Operation Log + reducer + `REVERT`, inline editor, text replace/add/delete, Font Resolution Chain (original-font reuse, Font Catalog, consented Google Fonts, substitutes, Liberation), Patches + Masks, overflow wrapping, drawability check, undo/redo, History tab, Session autosave |
 | **M3 Move and style** | Dragging with dual-location masking, Safe Area clamping, Properties Panel (position, style overrides, font notes) |
 | **M4 Images** | Image detection, replace with fit modes, move, resize, delete |
-| **M5 Export** | `pdf-exporter` with fontkit embedding, shared text layout, masks, image embedding, Export modal |
+| **M5 Export** | `pdf-exporter` with original-font resource reuse and fontkit embedding, shared text layout, masks, image embedding, Export modal |
 | **M6 Polish** | Search, shortcuts modal, thumbnails, nudging, palette presets, accessibility audit, performance (workers), cross-browser QA |
 
 **MVP = M0 to M5** (all text and image edit operations, including add/delete and image move/resize/delete, plus export). M6 completes v1.0.
@@ -328,18 +346,20 @@ interface TextLine {
 
 ## 14. Test Strategy (summary)
 
-- **Unit:** matrix → font size, run → Text Line merging, Font Class mapping, coordinate transforms (rotation, CropBox, Display Coordinates), Safe Area clamping, wrapping at the Wrap Margin, Glyph Coverage check, operation reducer (apply/undo/redo/`REVERT`), background-color sampling.
-- **Integration:** extraction on the three sample PDFs plus a corpus (rotated pages, rotated text, subset fonts, tinted backgrounds, scanned page, encrypted file).
-- **Visual regression:** preview canvas vs exported PDF rasterized with PDF.js, for every operation type.
-- **E2E (Playwright):** upload, edit, add, delete, move, image replace/resize/delete, undo/redo, history revert, session restore, export, keyboard shortcuts, offline mode, no outbound document requests.
+- **Unit:** matrix → font size, run → Text Line merging, family normalization and Font Class mapping, Font Resolution Chain tier selection (coverage, `fsType`, offline, consent), Unicode → original-font code encoding, coordinate transforms (rotation, CropBox, Display Coordinates), Safe Area clamping, wrapping at the Wrap Margin, Glyph Coverage check, operation reducer (apply/undo/redo/`REVERT`), background-color sampling.
+- **Integration:** extraction on the three sample PDFs plus a corpus (rotated pages, rotated text, subset fonts, CID/Identity-H fonts, custom encodings, restricted `fsType`, non-embedded Standard 14, tinted backgrounds, scanned page, encrypted file). Export round-trip: text written with the original font re-extracts as the same Unicode.
+- **Visual regression:** preview canvas vs exported PDF rasterized with PDF.js, for every operation type and every font tier.
+- **E2E (Playwright):** upload, edit, add, delete, move, image replace/resize/delete, undo/redo, history revert, session restore, export, keyboard shortcuts, offline mode, no outbound document requests, no font request without consent.
 - **Manual:** cross-browser, high-DPI, zoom extremes, large files.
 
 ## 15. Decision Log (requirements review, 2026-10-03)
 
 | Question | Decision | Record |
 |---|---|---|
-| Export font for edited text | Bundled Liberation Sans/Serif/Mono × 4 styles, embedded with fontkit | ADR-0001 |
-| Preview font for edited text | Same Bundled Font as export (supersedes `loadedName`-first) | ADR-0001 |
+| Export font for edited text | ~~Bundled Liberation only~~ → Font Resolution Chain: original embedded font → self-hosted exact family / consented Google Fonts → metric-compatible substitute → Liberation | ADR-0007 (supersedes ADR-0001) |
+| Preview font for edited text | Same Resolved Font as export | ADR-0007 |
+| Font downloads | Self-hosted catalog + optional Google Fonts download with per-family consent | ADR-0007, ADR-0005 amendment |
+| Missing character in original font | Whole line switches to the next font that covers all characters | ADR-0007, TY-14 |
 | Editable text unit | Merged Text Line | ADR-0002 |
 | History revert semantics | Append `REVERT` op; undoable | ADR-0003 |
 | Undo granularity | One Gesture = one operation | ADR-0003 |
@@ -349,7 +369,7 @@ interface TextLine {
 | Deployment | Static site + PWA, strict CSP | ADR-0005 |
 | Encrypted PDFs | Blocked with clear error | ADR-0006 |
 | Extra operations | Text delete, text add, image move/resize/delete | §6 |
-| Scripts | Latin, Latin Extended, Greek, Cyrillic; block others on commit | TY-11, TE-9 |
+| Scripts | Guaranteed Latin, Latin Extended, Greek, Cyrillic; others only if a chain font covers them | TY-11, TE-9 |
 | Multi-select | No (single selection) | ST-8 |
 | Y coordinate in UI | Top-left origin, points | MV-5 |
 | Text overflow | Extend, wrap at `pageWidth − 40 pt`, no reflow, overlap hint | TE-6 |
