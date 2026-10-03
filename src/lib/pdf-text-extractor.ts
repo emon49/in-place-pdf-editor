@@ -55,8 +55,9 @@ export async function readPageText(page: TextSourcePage): Promise<PageText> {
   for (const item of content.items) {
     if (!('str' in item)) continue; // marked-content markers
     const text = item as TextItem;
-    // PDF.js emits empty items as line-end markers; they carry no glyphs.
-    if (text.str === '' && text.width === 0) continue;
+    // PDF.js emits empty items as line-end markers and as placeholders for wide gaps; they carry no glyphs,
+    // and a placeholder spanning a gap would wrongly bridge two cells.
+    if (text.str === '') continue;
     const style: TextStyle | undefined = content.styles[text.fontName];
     const font = fonts.get(text.fontName) ?? readFont(page, text.fontName);
     if (font) fonts.set(text.fontName, font);

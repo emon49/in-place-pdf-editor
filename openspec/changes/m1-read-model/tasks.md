@@ -20,7 +20,7 @@
 - [x] 3.3 Implement space restoration (insert one space at a gap of at least 0.08 em unless whitespace is already present); verify unit tests cover the "Hello world" and kerned "AV" scenarios, including fragments that already end with a space
 - [x] 3.4 Implement Text Line geometry (baseline origin, glyph bounding box from ascent and descent, stored in Page Space with non-negative width and height); verify unit tests on a 12 pt line at (72, 700) and a property test that boxes never have negative extents
 - [x] 3.5 Implement locked detection (skew after removing page rotation, vertical writing, Type 3) with reason codes, and ensure locked fragments never merge; verify unit tests distinguish a rotated run on an unrotated page from horizontal text on a `/Rotate 90` page
-- [ ] 3.6 Implement display-space reading order and `"<pageIndex>:<sequence>"` identity; verify unit tests cover ordering on a rotated page and an integration test shows identifiers are unchanged when a page is extracted twice
+- [x] 3.6 Implement display-space reading order and `"<pageIndex>:<sequence>"` identity; verify unit tests cover ordering on a rotated page and an integration test shows identifiers are unchanged when a page is extracted twice
 - [ ] 3.7 Contain extraction failures per page (status `failed`, page still rendered, other pages unaffected); verify a unit test with a throwing extractor asserts the status and that the next page extracts normally
 
 ## 4. Font detection (TY-1, TY-2, TY-4, TY-5, TY-7)
@@ -34,15 +34,15 @@
 
 ## 5. Colour detection (TY-3)
 
-- [ ] 5.1 Implement the operator-list state walker producing `StyledSpan`s (graphics stack, text state, fill colour across grey, RGB, CMYK and pattern operators); verify unit tests over synthetic operator lists cover save/restore nesting and colour persisting across several show operations
-- [ ] 5.2 Implement span-to-item correlation (exact start point and font, then nearest within half an em, then most recent in stream order) marking unmatched items colour-unresolved; verify an integration test correlates every text item in all three samples and a unit test forces a mismatch to confirm it is marked unresolved
-- [ ] 5.3 Implement the pixel-sampling fallback for unresolved colours, marking the result sampled rather than exact; verify unit tests show exact colours are never sampled and that a forced-unresolved line yields a sampled colour
-- [ ] 5.4 Report the resolved colour, character spacing, word spacing, rise and rendering mode on each Text Line; verify an integration test asserts the Invoice's coloured line reports its colour and that a line with no spacing operators reports the documented defaults
+- [x] 5.1 Implement the operator-list state walker producing `StyledSpan`s (graphics stack, text state, fill colour across grey, RGB, CMYK and pattern operators); verify unit tests over synthetic operator lists cover save/restore nesting and colour persisting across several show operations
+- [x] 5.2 Implement span-to-item correlation (exact start point and font, then nearest within half an em, then most recent in stream order) marking unmatched items colour-unresolved; verify an integration test correlates every text item in all three samples and a unit test forces a mismatch to confirm it is marked unresolved
+- [x] 5.3 Implement the pixel-sampling fallback for unresolved colours, marking the result sampled rather than exact; verify unit tests show exact colours are never sampled and that a forced-unresolved line yields a sampled colour
+- [x] 5.4 Report the resolved colour, character spacing, word spacing, rise and rendering mode on each Text Line; verify an integration test asserts the Invoice's coloured line reports its colour and that a line with no spacing operators reports the documented defaults
 
 ## 6. Background sampling (ADR-0004, VW-9)
 
-- [ ] 6.1 Implement the dedicated scale-1 off-screen page render used for sampling; verify a unit test shows it is created once per page and is independent of the viewer's zoom
-- [ ] 6.2 Implement ring sampling with a dominant colour and a uniformity ratio (non-uniform below 90% in the dominant bucket); verify unit tests over synthetic pixel data cover a flat fill, a tinted header and a photographic ring
+- [x] 6.1 Implement the dedicated scale-1 off-screen page render used for sampling; verify a unit test shows it is created once per page and is independent of the viewer's zoom
+- [x] 6.2 Implement ring sampling with a dominant colour and a uniformity ratio (non-uniform below 90% in the dominant bucket); verify unit tests over synthetic pixel data cover a flat fill, a tinted header and a photographic ring
 - [ ] 6.3 Schedule sampling after the visible render in an idle callback, updating the page model without a re-render and leaving lines usable while pending; verify a test asserts lines are selectable before sampling completes and that no page re-render is triggered when results arrive
 
 ## 7. Selection overlay (VW-2, VW-3, VW-8, VW-9)
