@@ -4,14 +4,16 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-**PDF In-Place Editor**: a 100% client-side, non-destructive WYSIWYG PDF editor. Users click text or images on a rendered PDF, edit them in place, and export a new PDF with the layout preserved. There is no backend. See `PRD.md` for requirements and `featurelist.md` for the original spec.
+**PDF In-Place Editor**: a 100% client-side, non-destructive WYSIWYG PDF editor. Users click text or images on a rendered PDF, edit them in place, and export a new PDF with the layout preserved. There is no backend. See `docs/PRD.md` for requirements, `CONTEXT.md` for the domain glossary, `docs/adr/` for architecture decisions, and `docs/featurelist.md` for the original spec.
 
 ## Tech Stack
 
 - React 18/19 + TypeScript (strict)
 - Tailwind CSS + Lucide Icons
 - `pdfjs-dist` for rendering and text/font/image extraction
-- `pdf-lib` for export (whiteout masks, text, image embedding)
+- `pdf-lib` + `@pdf-lib/fontkit` for export (masks, text with bundled fonts, image embedding)
+- Bundled Liberation Sans/Serif/Mono fonts (OFL) for all edited text (ADR-0001)
+- IndexedDB for local session autosave; static site + PWA with strict CSP (ADR-0005)
 - Zustand for state
 - Vite, Vitest, Playwright (assumed tooling; adjust if the repo differs)
 
@@ -34,16 +36,17 @@ Run `typecheck`, `lint` and `test` before declaring any task done.
 Five stacked layers, all sharing one page coordinate space:
 
 0. PDF.js background canvas (high-DPI)
-1. In-place patches and dual-whiteout masks
+1. In-place patches and dual-location masks (sampled background color)
 2. Interactive text detection / selection boxes
 3. Interactive images layer
 4. Inline textarea editor
 
 Key rules:
 
-- **Non-destructive.** Never mutate the original document state. Edits are `EditOperation`s (`TEXT_REPLACE`, `TEXT_STYLE_CHANGE`, `OBJECT_MOVE`, `IMAGE_REPLACE`) in the store. `previewDocument` is *derived* from original + operations.
-- **Undo/redo comes from the operation stack.** Do not add ad-hoc mutations that bypass it.
-- **Dual whiteout.** A moved or edited text object masks its original position (A) and renders at its new position (B). Both preview and export must do this.
+- **Non-destructive.** Never mutate the original document state. Edits are `EditOperation`s (`TEXT_REPLACE`, `TEXT_STYLE_CHANGE`, `TEXT_ADD`, `OBJECT_MOVE`, `OBJECT_RESIZE`, `OBJECT_DELETE`, `IMAGE_REPLACE`, `REVERT`) in an append-only Operation Log. `previewDocument` is *derived* from original + operations.
+- **Undo/redo comes from the operation log.** Do not add ad-hoc mutations that bypass it. One user gesture = one operation; History reverts append a `REVERT` op (ADR-0003).
+- **Editable unit is the merged Text Line** (ADR-0002), not the raw PDF.js run.
+- **Dual-location masking.** A moved, edited or deleted object masks its original position (A) with the sampled background color and renders at its new position (B). Both preview and export must do this (ADR-0004).
 - **Preview and export share geometry.** Compute font size, line height, spacing and positions once (extractor modules) and reuse them in the viewer and `pdf-exporter.ts`. Do not duplicate the math.
 - **Client-side only.** Never add network calls that send document data. No analytics on document content.
 
@@ -74,16 +77,19 @@ tests/           unit + e2e
 - PDF user space: points, **origin bottom-left**.
 - Canvas/DOM: pixels, **origin top-left**.
 - Store coordinates in PDF points; convert to screen only at the render boundary using a single helper (page height, zoom, `devicePixelRatio`, page rotation, CropBox offset).
-- Position clamping: `10 ≤ X ≤ pageWidth − 40`, `10 ≤ Y ≤ pageHeight − 20` (points).
+- Position clamping: the object's whole bounding box stays inside a 10 pt inset (Safe Area). Text wraps at `pageWidth − 40 pt`.
+- The Properties Panel shows X/Y with a **top-left** origin (Display Coordinates); convert in the same helper.
+- Rotated pages are supported; rotated/skewed text is a locked (read-only) object in v1.
 - When touching geometry code, add or update a unit test.
 
 ## Typography Rules
 
 - Font size comes from vertical matrix scale (`√(c²+d²)` / `|d|`) and `item.height`. Do **not** use horizontal scale for size.
 - Strip subset prefixes (`ABCDEF+Times` becomes `Times`).
-- Put `fontObj.loadedName` first in the CSS font stack for preview.
-- Export maps to PDF Standard 14 fonts unless a font is explicitly embedded. Surface a warning when preview and export fonts differ.
-- Colors are sampled from rendered pixels (`pdf-color-extractor.ts`); keep sampling off the main render path where possible.
+- Edited/added text renders with the bundled Liberation font for its font class (sans/serif/mono) in **both** preview and export (ADR-0001). `fontObj.loadedName` is for detection/display only. Show "Original: X → Exported as Y" when they differ.
+- Do not use Standard 14 fonts for patches.
+- Text color comes from the operator-list fill color, with pixel sampling as fallback. Mask color is sampled from pixels around the object (`pdf-color-extractor.ts`); keep sampling off the main render path where possible.
+- Glyph coverage is Latin, Latin Extended, Greek and Cyrillic; block commit of other characters with a warning.
 
 ## Code Conventions
 
@@ -97,7 +103,7 @@ tests/           unit + e2e
 
 ## Keyboard Shortcuts (must keep working)
 
-`Ctrl/Cmd+Z` undo, `Ctrl+Y` / `Ctrl+Shift+Z` redo, `Ctrl+S` open Export, `Enter` commit edit, `Shift+Enter` newline, `Esc` cancel.
+`Ctrl/Cmd+Z` undo, `Ctrl+Y` / `Ctrl+Shift+Z` redo, `Ctrl+S` open Export, `Enter` commit edit, `Shift+Enter` newline, `Esc` cancel, `Delete`/`Backspace` delete selected object.
 
 ## Testing Expectations
 
@@ -111,12 +117,13 @@ tests/           unit + e2e
 
 - Whiteout hides text visually but does **not** remove it from the PDF; it is not secure redaction.
 - Edits are per text run; surrounding paragraph text does not reflow.
-- Non-Latin scripts need embedded Unicode fonts (not covered by Standard 14).
-- Whiteout assumes a white background unless background sampling is implemented.
+- Scripts outside Latin/Greek/Cyrillic are not supported (no RTL or complex shaping).
+- Masks use one sampled solid color; on images or gradients they may be visible (warn the user).
+- Encrypted PDFs are blocked (ADR-0006). Single selection only; no multi-select.
 
 ## Working Agreements
 
-- Check `PRD.md` requirement IDs (e.g. `MV-3`, `EX-2`) when implementing; reference them in commits and PRs.
+- Check `docs/PRD.md` requirement IDs (e.g. `MV-3`, `EX-2`) when implementing; reference them in commits and PRs.
 - If a requirement is ambiguous or conflicts with this file, ask before guessing.
 - Do not add dependencies without a short justification; prefer the stack above.
 - Never commit sample PDFs containing real personal data.
