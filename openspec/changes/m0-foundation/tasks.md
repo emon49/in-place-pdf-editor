@@ -41,15 +41,15 @@
 
 ## 6. App shell: PWA and CSP (privacy and offline NFRs)
 
-- [ ] 6.1 Create `csp.ts` (single policy per design D3) and wire it into `vite preview` headers, a generated `dist/_headers`, and an `index.html` meta fallback without `frame-ancestors`; verify a unit test that all three are derived from the same constant and `npm run build` emits `_headers`
-- [ ] 6.2 Add `vite-plugin-pwa` (`generateSW`, `registerType: 'prompt'`) precaching app chunks, PDF.js worker, cmaps, standard fonts, wasm, icons and the samples chunk, plus a web app manifest; verify the built service worker's precache manifest lists those assets
-- [ ] 6.3 Implement the non-blocking "Reload to update" notice; verify a component test that it appears on the `needRefresh` signal and reloads only on click
+- [x] 6.1 Create `csp.ts` (single policy per design D3) and wire it into `vite preview` headers, a generated `dist/_headers`, and an `index.html` meta fallback without `frame-ancestors`; verify a unit test that all three are derived from the same constant and `npm run build` emits `_headers`
+- [x] 6.2 Add `vite-plugin-pwa` (`generateSW`, `registerType: 'prompt'`) precaching app chunks, PDF.js worker, cmaps, standard fonts, wasm, icons and the samples chunk, plus a web app manifest; verify the built service worker's precache manifest lists those assets
+- [x] 6.3 Implement the non-blocking "Reload to update" notice; verify a component test that it appears on the `needRefresh` signal and reloads only on click
 
 ## 7. End-to-end verification
 
-- [ ] 7.1 E2E: open the valid fixture via file chooser and via drop, open each sample, and confirm the corrupt/non-PDF/encrypted/multiple-file messages; verify all Playwright tests pass against `vite preview`
-- [ ] 7.2 E2E: page navigation (buttons, input, PageDown at last page), zoom presets, fit-to-page across the Technical Spec rotated page; verify tests pass and a screenshot shows the rotated page in landscape
-- [ ] 7.3 E2E privacy: record all requests while opening a fixture, navigating and zooming; verify every request is same-origin and none occurs after load except cached assets, and that a scripted `fetch` to a third-party origin is blocked by CSP
-- [ ] 7.4 E2E offline: load once, `context.setOffline(true)`, reload, open a local PDF and a sample; verify both render
-- [ ] 7.5 E2E performance: generate the 10-page, 5 MB fixture in test setup and measure time from file selection to first-page render; verify it is under 2 s on CI hardware (report the measured value)
-- [ ] 7.6 Run `npm run typecheck`, `npm run lint`, `npm run test` and `npm run test:e2e`; verify all pass, and update `CLAUDE.md` Commands/Structure only if the actual layout differs from it
+- [x] 7.1 E2E: open the valid fixture via file chooser and via drop, open each sample, and confirm the corrupt/non-PDF/encrypted/multiple-file messages; verify all Playwright tests pass against `vite preview`
+- [x] 7.2 E2E: page navigation (buttons, input, PageDown at last page), zoom presets, fit-to-page across the Technical Spec rotated page; verify tests pass and a screenshot shows the rotated page in landscape
+- [x] 7.3 E2E privacy: record all requests while opening a fixture, navigating and zooming; verify every request is same-origin and none occurs after load except cached assets, and that a scripted `fetch` to a third-party origin is blocked by CSP
+- [x] 7.4 E2E offline: load once, `context.setOffline(true)`, reload, open a local PDF and a sample; verify both render
+- [x] 7.5 E2E performance: generate the 10-page, 5 MB fixture in test setup and measure time from file selection to first-page render; verify it is under 2 s on CI hardware (report the measured value)
+- [x] 7.6 Run `npm run typecheck`, `npm run lint`, `npm run test` and `npm run test:e2e`; verify all pass, and update `CLAUDE.md` Commands/Structure only if the actual layout differs from it

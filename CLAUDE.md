@@ -15,7 +15,8 @@ Guidance for Claude Code when working in this repository.
 - Font Resolution Chain for edited text (ADR-0007): embedded original font → self-hosted open fonts / consented Google Fonts → metric-compatible substitutes → Liberation
 - IndexedDB for local session autosave; static site + PWA with strict CSP (ADR-0005)
 - Zustand for state
-- Vite, Vitest, Playwright (assumed tooling; adjust if the repo differs)
+- Vite, Vitest, Playwright, ESLint (flat config with `jsx-a11y`), PWA via `vite-plugin-pwa`
+- PDF.js is imported from `pdfjs-dist/legacy/...` (the modern build needs JS built-ins that stable browsers lack)
 
 ## Commands
 
@@ -26,7 +27,8 @@ npm run build        # type-check + production build
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
 npm run test         # vitest (unit)
-npm run test:e2e     # playwright
+npm run test:e2e     # playwright (builds, then runs against `vite preview` with the real CSP + service worker)
+npm run fixtures     # regenerate tests/fixtures (needs qpdf)
 ```
 
 Run `typecheck`, `lint` and `test` before declaring any task done.
@@ -58,6 +60,11 @@ src/
                  PDFUploader, ExportModal, ShortcutsModal
   store/         editorStore.ts
   lib/
+    coordinates.ts        # the single Page/Display/Screen conversion helper
+    zoom.ts, render-scale.ts, keyboard.ts
+    pdf-loader.ts, pdf-sniff.ts, pdfjs.ts, load-errors.ts
+    document-registry.ts  # PDF.js handles + original bytes (kept out of the store)
+    sample-catalog.ts, samples/   # pdf-lib sample generators (lazy-loaded)
     pdf-objects.ts
     pdf-text-extractor.ts
     font-resolver.ts
@@ -69,7 +76,8 @@ src/
     pdf-exporter.ts
     sample-documents.ts
   types/
-tests/           unit + e2e
+tests/           unit (incl. components/), integration (Node PDF.js), e2e, fixtures
+csp.ts           single Content-Security-Policy source (headers, _headers, meta)
 ```
 
 ## Coordinate System (common bug source)
