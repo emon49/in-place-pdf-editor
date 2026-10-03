@@ -46,39 +46,39 @@
 
 ## 8. Patches and Masks
 
-- [ ] 8.1 Implement `MaskLayer.tsx` — for each operation that masks an original position (TEXT_REPLACE, OBJECT_DELETE on existing lines), render an absolutely positioned div with `background-color` from `line.background.color` (or white if pending) at the original box position (D7, VW-7). Verify: unit tests — mask rendered for edited line, mask rendered for deleted line, no mask for added text, correct position and color
-- [ ] 8.2 Implement `PatchLayer.tsx` — for each active TEXT_REPLACE or TEXT_ADD, render the text at the line's position using the Resolved Font's CSS family, matching size/spacing/color. Multi-line patches from overflow use flexbox column (D7, VW-6). Verify: unit tests — patch shows new text, multi-line patch renders two lines, patch uses Resolved Font family
-- [ ] 8.3 Integrate MaskLayer and PatchLayer into the PDFViewer's overlay stack: Masks in Layer 1 below Patches, both below Layer 2 (TextOverlay) and Layer 4 (editor). Verify: visual integration test — mask covers original, patch shows over mask, selection ring shows over patch
-- [ ] 8.4 Patches and Masks update on undo/redo — when the cursor changes, the preview lines update and the layers reflect the current state. Verify: unit test — undo removes patch and mask, redo restores them
-- [ ] 8.5 Show overflow overlap hint when a Patch intersects another object's box. Verify: unit test — hint appears when patch overlaps, hint absent when no overlap (TE-6)
+- [x] 8.1 Implement `MaskLayer.tsx` — for each operation that masks an original position (TEXT_REPLACE, OBJECT_DELETE on existing lines), render an absolutely positioned div with `background-color` from `line.background.color` (or white if pending) at the original box position (D7, VW-7). Verify: unit tests — mask rendered for edited line, mask rendered for deleted line, no mask for added text, correct position and color
+- [x] 8.2 Implement `PatchLayer.tsx` — for each active TEXT_REPLACE or TEXT_ADD, render the text at the line's position using the Resolved Font's CSS family, matching size/spacing/color. Multi-line patches from overflow use flexbox column (D7, VW-6). Verify: unit tests — patch shows new text, multi-line patch renders two lines, patch uses Resolved Font family
+- [x] 8.3 Integrate MaskLayer and PatchLayer into the PDFViewer's overlay stack: Masks in Layer 1 below Patches, both below Layer 2 (TextOverlay) and Layer 4 (editor). Verify: visual integration test — mask covers original, patch shows over mask, selection ring shows over patch
+- [x] 8.4 Patches and Masks update on undo/redo — when the cursor changes, the preview lines update and the layers reflect the current state. Verify: unit test — undo removes patch and mask, redo restores them
+- [x] 8.5 Show overflow overlap hint when a Patch intersects another object's box. Verify: unit test — hint appears when patch overlaps, hint absent when no overlap (TE-6)
 
 ## 9. Style overrides
 
-- [ ] 9.1 Wire TEXT_STYLE_CHANGE operation: the reducer merges `Partial<TextStyle>` onto the line's base style. Resolved Font recomputes when family changes (D11, TY-9). Verify: unit tests — size override applies, family override triggers re-resolution, multiple style changes each produce separate operations
-- [ ] 9.2 Add minimal style controls in the Header or near the editor: font family selector (Original Font when eligible, catalog families, Liberation), size stepper, bold/italic toggles, color picker. Each change pushes a TEXT_STYLE_CHANGE (TY-9). Verify: unit test — selecting a font creates a style-change op, size stepper creates an op
-- [ ] 9.3 Show tier explanation: display the Resolved Font name and tier reason (e.g. "Original font" or "Original font lacks 'é' → using Carlito") near the editor or in the text objects tab (TY-12). Verify: unit test — explanation reflects the correct tier and reason
+- [x] 9.1 Wire TEXT_STYLE_CHANGE operation: the reducer merges `Partial<TextStyle>` onto the line's base style. Resolved Font recomputes when family changes (D11, TY-9). Verify: unit tests — size override applies, family override triggers re-resolution, multiple style changes each produce separate operations
+- [x] 9.2 Add minimal style controls in the Header or near the editor: font family selector (Original Font when eligible, catalog families, Liberation), size stepper, bold/italic toggles, color picker. Each change pushes a TEXT_STYLE_CHANGE (TY-9). Verify: unit test — selecting a font creates a style-change op, size stepper creates an op
+- [x] 9.3 Show tier explanation: display the Resolved Font name and tier reason (e.g. "Original font" or "Original font lacks 'é' → using Carlito") near the editor or in the text objects tab (TY-12). Verify: unit test — explanation reflects the correct tier and reason
 
 ## 10. History tab
 
-- [ ] 10.1 Implement `HistoryTab.tsx` in the Sidebar — lists operations from `ops[0..cursor)` in reverse chronological order with operation-type icon, human-readable summary, relative timestamp, and a revert button. Reverted entries are dimmed with a "Reverted" badge (D9, ST-7). Verify: unit tests — entries listed newest-first, revert button appends REVERT, reverted entry shows badge, empty state message when no ops
-- [ ] 10.2 Two-way selection: clicking a History entry selects the affected object on the page; selecting an object highlights its History entries. Verify: unit test — click entry selects object, select object highlights entries
-- [ ] 10.3 "Revert to Original" action: available on selected objects that have been edited, appends a REVERT targeting all effective ops on that object (TE-5). Verify: unit test — revert-to-original restores the line, unavailable on unedited lines
-- [ ] 10.4 Edit count badge in the Header showing "N edits applied" based on `cursor`. Updates on edit/undo/redo (ST-5). Verify: unit test — badge shows correct count, undo decrements
+- [x] 10.1 Implement `HistoryTab.tsx` in the Sidebar — lists operations from `ops[0..cursor)` in reverse chronological order with operation-type icon, human-readable summary, relative timestamp, and a revert button. Reverted entries are dimmed with a "Reverted" badge (D9, ST-7). Verify: unit tests — entries listed newest-first, revert button appends REVERT, reverted entry shows badge, empty state message when no ops
+- [x] 10.2 Two-way selection: clicking a History entry selects the affected object on the page; selecting an object highlights its History entries. Verify: unit test — click entry selects object, select object highlights entries
+- [x] 10.3 "Revert to Original" action: available on selected objects that have been edited, appends a REVERT targeting all effective ops on that object (TE-5). Verify: unit test — revert-to-original restores the line, unavailable on unedited lines
+- [x] 10.4 Edit count badge in the Header showing "N edits applied" based on `cursor`. Updates on edit/undo/redo (ST-5). Verify: unit test — badge shows correct count, undo decrements
 
 ## 11. Session persistence
 
-- [ ] 11.1 Implement `session-store.ts` — IndexedDB wrapper: `saveSession(data)`, `loadSession()`, `clearSession()`. Schema: object store `sessions`, key `current`, value includes originalBytes, fileName, ops, cursor, savedAt (D8, ST-6). Verify: integration test — save then load round-trips, clear removes data, operations survive page reload simulation
-- [ ] 11.2 Wire debounced autosave: after each operation (debounced 1s), call `saveSession`. Save original bytes only on first open; subsequent saves write only the log. `beforeunload` flushes pending (ST-6). Verify: integration test — autosave fires after debounce, only log updated on subsequent saves
-- [ ] 11.3 Restore prompt on reload: if a session exists, show "Restore previous session?" with Restore and Discard. Restore reopens the document and replays the log (ST-6). Verify: integration test — restore shows edits, discard clears and starts fresh
-- [ ] 11.4 "Discard session" control in the UI and session indicator ("Saved on this device"). Quota-exceeded warning when write fails (ADR-0005). Verify: unit test — discard button clears IndexedDB, indicator visible after save, quota error shows warning
+- [x] 11.1 Implement `session-store.ts` — IndexedDB wrapper: `saveSession(data)`, `loadSession()`, `clearSession()`. Schema: object store `sessions`, key `current`, value includes originalBytes, fileName, ops, cursor, savedAt (D8, ST-6). Verify: integration test — save then load round-trips, clear removes data, operations survive page reload simulation
+- [x] 11.2 Wire debounced autosave: after each operation (debounced 1s), call `saveSession`. Save original bytes only on first open; subsequent saves write only the log. `beforeunload` flushes pending (ST-6). Verify: integration test — autosave fires after debounce, only log updated on subsequent saves
+- [x] 11.3 Restore prompt on reload: if a session exists, show "Restore previous session?" with Restore and Discard. Restore reopens the document and replays the log (ST-6). Verify: integration test — restore shows edits, discard clears and starts fresh
+- [x] 11.4 "Discard session" control in the UI and session indicator ("Saved on this device"). Quota-exceeded warning when write fails (ADR-0005). Verify: unit test — discard button clears IndexedDB, indicator visible after save, quota error shows warning
 
 ## 12. Integration and E2E
 
-- [ ] 12.1 E2E test: upload a sample PDF, double-click a Text Line, edit text, press Enter, verify the Patch appears and the Mask covers the original. Undo with Ctrl+Z, verify original reappears (TE-1, TE-4, ST-3)
-- [ ] 12.2 E2E test: select a Text Line, press Delete, verify it disappears and a Mask covers its position. Undo, verify it reappears (TE-7)
-- [ ] 12.3 E2E test: activate add-text tool, click empty space, type text, commit, verify a new Patch appears at the clicked position (TE-8)
-- [ ] 12.4 E2E test: make several edits, open History tab, verify entries listed, click revert on one, verify the text reverts and a REVERT entry appears (ST-7)
-- [ ] 12.5 E2E test: edit text, reload the page, choose Restore, verify edits are present. Choose Discard on another reload, verify fresh start (ST-6)
-- [ ] 12.6 E2E test: type a character no font can draw (e.g. a rare CJK character), verify commit is blocked with a warning naming the character (TE-9)
-- [ ] 12.7 E2E test: edit text that overflows, verify it wraps at the Wrap Margin and an overlap hint appears if it intersects another line (TE-6)
-- [ ] 12.8 Run `npm run typecheck`, `npm run lint`, `npm run test` and verify all pass with no regressions
+- [x] 12.1 E2E test: upload a sample PDF, double-click a Text Line, edit text, press Enter, verify the Patch appears and the Mask covers the original. Undo with Ctrl+Z, verify original reappears (TE-1, TE-4, ST-3)
+- [x] 12.2 E2E test: select a Text Line, press Delete, verify it disappears and a Mask covers its position. Undo, verify it reappears (TE-7)
+- [x] 12.3 E2E test: activate add-text tool, click empty space, type text, commit, verify a new Patch appears at the clicked position (TE-8)
+- [x] 12.4 E2E test: make several edits, open History tab, verify entries listed, click revert on one, verify the text reverts and a REVERT entry appears (ST-7)
+- [x] 12.5 E2E test: edit text, reload the page, choose Restore, verify edits are present. Choose Discard on another reload, verify fresh start (ST-6)
+- [x] 12.6 E2E test: type a character no font can draw (e.g. a rare CJK character), verify commit is blocked with a warning naming the character (TE-9)
+- [x] 12.7 E2E test: edit text that overflows, verify it wraps at the Wrap Margin and an overlap hint appears if it intersects another line (TE-6)
+- [x] 12.8 Run `npm run typecheck`, `npm run lint`, `npm run test` and verify all pass with no regressions

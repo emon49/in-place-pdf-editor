@@ -1,21 +1,29 @@
 import { Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Banner } from './components/Banner';
+import { FontTierExplanation } from './components/FontTierExplanation';
 import { Header } from './components/Header';
+import { HistoryTab } from './components/HistoryTab';
 import { InlineTextEditor } from './components/InlineTextEditor';
+import { MaskLayer } from './components/MaskLayer';
+import { PatchLayer } from './components/PatchLayer';
 import { PDFUploader } from './components/PDFUploader';
 import { PDFViewer } from './components/PDFViewer';
 import { Sidebar } from './components/Sidebar';
+import { StyleControls } from './components/StyleControls';
 import { TextObjectsTab } from './components/TextObjectsTab';
 import { TextOverlay } from './components/TextOverlay';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { createOperation } from './lib/create-operation';
-import type { ObjectDeleteOp, PreviewLine, TextAddOp, TextReplaceOp, TextStyle } from './types/operations';
+import { layoutText } from './lib/text-layout';
+import type { ObjectDeleteOp, PreviewLine, RevertOp, TextAddOp, TextReplaceOp, TextStyle, TextStyleChangeOp } from './types/operations';
 import { NOTICE_MESSAGES } from './lib/document-notice';
 import { viewerKeyAction } from './lib/keyboard';
 import { LOAD_ERROR_MESSAGES } from './lib/load-errors';
 import type { SampleId } from './lib/sample-catalog';
 import { usePageModel, usePageSampling } from './store/usePageModel';
+import { clearSession, loadSession, useAutoSave } from './store/useAutoSave';
+import type { SessionData } from './lib/session-store';
 import { documentRegistry, editorStore, openSample, useEditor } from './store/useEditor';
 import { screenToPage, type PageGeometry, type Point } from './lib/coordinates';
 
@@ -63,7 +71,15 @@ function PageOverlay({
   const { status, model } = usePageModel(documentId, pageIndex);
   const selection = useEditor((s) => s.selection);
   const { selectObject, stepSelection, previewLines } = editorStore.getState();
-  const lines = model ? previewLines(pageIndex) : [];
+  const rawLines = model ? previewLines(pageIndex) : [];
+  const pageWidth = geometry.box[2] - geometry.box[0];
+  const lines: PreviewLine[] = rawLines.map((line) => {
+    if (!line.deleted && line.patchLayout === null && line.currentText !== line.text) {
+      const { lines: pl } = layoutText(line.currentText, line.currentStyle, line.box, pageWidth);
+      return { ...line, patchLayout: pl };
+    }
+    return line;
+  });
   const editingLine = editingId ? lines.find((l) => l.id === editingId) ?? null : null;
 
   // Infer style from the nearest non-deleted TextLine above the add-text point
@@ -114,6 +130,12 @@ function PageOverlay({
 
   return (
     <>
+      {model && (
+        <MaskLayer lines={lines} geometry={geometry} zoom={zoom} />
+      )}
+      {model && (
+        <PatchLayer lines={lines} geometry={geometry} zoom={zoom} />
+      )}
       {model && (
         <TextOverlay
           lines={lines}
@@ -166,6 +188,7 @@ export function App() {
   const viewerRef = useRef<HTMLDivElement>(null);
   const selection = useEditor((s) => s.selection);
   const [rendered, setRendered] = useState<{ documentId: string; pageIndex: number } | null>(null);
+  const [restoreSession, setRestoreSession] = useState<SessionData | null>(null);
   const docIdForPage = document?.id;
   const activeModel = usePageModel(docIdForPage, view.pageIndex);
   usePageSampling(docIdForPage, view.pageIndex, rendered && rendered.documentId === docIdForPage ? rendered.pageIndex : null);
@@ -230,6 +253,107 @@ export function App() {
       }),
     );
   }, [addTextPos]);
+
+  // Check for saved session on mount (ST-6)
+  useEffect(() => {
+    void loadSession().then((saved) => {
+      if (saved) setRestoreSession(saved);
+    });
+  }, []);
+
+  const handleRestoreSession = useCallback(async () => {
+    if (!restoreSession) return;
+    setRestoreSession(null);
+    const fileLike = { name: restoreSession.fileName, type: 'application/pdf' };
+    await editorStore.getState().openBytes(fileLike, restoreSession.originalBytes);
+    // Replay the operation log from the session
+    editorStore.setState({ ops: [...restoreSession.ops], cursor: restoreSession.cursor });
+  }, [restoreSession]);
+
+  const handleDiscardSession = useCallback(async () => {
+    setRestoreSession(null);
+    await clearSession();
+  }, []);
+
+  const handleStyleChange = useCallback((patch: Partial<TextStyle>) => {
+    const s = editorStore.getState();
+    const sel = s.selection;
+    if (!sel) return;
+    s.pushOperation(
+      createOperation<TextStyleChangeOp>({
+        type: 'TEXT_STYLE_CHANGE',
+        objectId: sel,
+        style: patch,
+        pageIndex: s.view.pageIndex,
+      }),
+    );
+  }, []);
+
+  // Derive selected line's current style and resolved font for StyleControls
+  const selectedLine = (() => {
+    if (!selection || !document) return null;
+    const preview = editorStore.getState().previewLines(view.pageIndex);
+    return preview.find((l) => l.id === selection) ?? null;
+  })();
+  const selectedStyle = selectedLine?.currentStyle ?? null;
+  const selectedResolvedFont = selectedLine?.resolvedFont ?? null;
+
+  const handleRevert = useCallback((opId: string) => {
+    const s = editorStore.getState();
+    s.pushOperation(
+      createOperation<RevertOp>({
+        type: 'REVERT',
+        targetOpIds: [opId],
+        pageIndex: s.view.pageIndex,
+      }),
+    );
+  }, []);
+
+  const handleRevertToOriginal = useCallback(() => {
+    const s = editorStore.getState();
+    const sel = s.selection;
+    if (!sel) return;
+    // Collect active op IDs for this object (non-REVERT, not already reverted)
+    const reverted = new Set<string>();
+    for (const op of s.ops.slice(0, s.cursor)) {
+      if (op.type === 'REVERT') {
+        for (const tid of op.targetOpIds) reverted.add(tid);
+      }
+    }
+    // Reverts of reverts cancel out
+    for (const op of s.ops.slice(0, s.cursor)) {
+      if (op.type === 'REVERT') {
+        for (const tid of op.targetOpIds) {
+          const target = s.ops.slice(0, s.cursor).find((o) => o.id === tid);
+          if (target?.type === 'REVERT') {
+            for (const ttid of target.targetOpIds) reverted.delete(ttid);
+            reverted.delete(tid);
+          }
+        }
+      }
+    }
+    const targetIds = s.ops
+      .slice(0, s.cursor)
+      .filter((op) => op.type !== 'REVERT' && (op as { objectId?: string }).objectId === sel && !reverted.has(op.id))
+      .map((op) => op.id);
+    if (targetIds.length === 0) return;
+    s.pushOperation(
+      createOperation<RevertOp>({
+        type: 'REVERT',
+        targetOpIds: targetIds,
+        pageIndex: s.view.pageIndex,
+      }),
+    );
+  }, []);
+
+  const ops = useEditor((s) => s.ops);
+
+  // Debounced autosave (ST-6, D8)
+  const autoSaveStatus = useAutoSave(document?.id ?? null, document?.name ?? null, ops, cursor);
+
+  const handleDiscardCurrentSession = useCallback(async () => {
+    await clearSession();
+  }, []);
 
   const openFiles = useCallback((files: File[]) => void editorStore.getState().openFiles(files), []);
   const loadSample = useCallback((id: SampleId) => void openSample(id), []);
@@ -313,6 +437,69 @@ export function App() {
         editCount={cursor}
       />
       <UpdatePrompt />
+      {autoSaveStatus === 'quota-exceeded' && (
+        <Banner tone="error" onDismiss={() => {}}>
+          <span data-testid="quota-warning">Storage quota exceeded — session could not be saved.</span>
+        </Banner>
+      )}
+      {document && autoSaveStatus === 'saved' && (
+        <div className="flex items-center gap-2 border-b border-slate-100 bg-white px-4 py-1 text-xs text-slate-500">
+          <span data-testid="session-indicator">Saved on this device</span>
+          <button
+            type="button"
+            data-testid="discard-session"
+            onClick={() => void handleDiscardCurrentSession()}
+            className="ml-auto rounded border border-slate-200 px-2 py-0.5 text-slate-400 hover:text-slate-600 focus-visible:outline-2 focus-visible:outline-blue-600"
+          >
+            Discard session
+          </button>
+        </div>
+      )}
+      {selectedStyle && (
+        <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-1.5">
+          <StyleControls style={selectedStyle} onChange={handleStyleChange} />
+          <FontTierExplanation resolvedFont={selectedResolvedFont} />
+          {selectedLine && (selectedLine.currentText !== selectedLine.text || selectedLine.deleted) && (
+            <button
+              type="button"
+              data-testid="revert-to-original"
+              onClick={handleRevertToOriginal}
+              className="ml-auto rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-blue-600"
+            >
+              Revert to original
+            </button>
+          )}
+        </div>
+      )}
+      {restoreSession && (
+        <div
+          role="dialog"
+          aria-label="Restore previous session"
+          data-testid="restore-prompt"
+          className="flex items-center gap-3 border-b border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900"
+        >
+          <span className="flex-1">
+            Restore previous session? <span className="font-medium">{restoreSession.fileName}</span>{' '}
+            — {restoreSession.ops.length} edit{restoreSession.ops.length === 1 ? '' : 's'} unsaved.
+          </span>
+          <button
+            type="button"
+            data-testid="restore-button"
+            onClick={() => void handleRestoreSession()}
+            className="rounded border border-blue-400 bg-blue-100 px-3 py-0.5 font-medium hover:bg-blue-200 focus-visible:outline-2 focus-visible:outline-blue-600"
+          >
+            Restore
+          </button>
+          <button
+            type="button"
+            data-testid="discard-button"
+            onClick={() => void handleDiscardSession()}
+            className="rounded border border-blue-300 px-3 py-0.5 hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-600"
+          >
+            Discard
+          </button>
+        </div>
+      )}
       {error && (
         <Banner tone="error" onDismiss={() => actions.setError(null)}>
           {LOAD_ERROR_MESSAGES[error]}
@@ -345,6 +532,19 @@ export function App() {
                         lines={activeModel.model?.lines ?? []}
                         selectedId={selection}
                         onSelect={actions.selectObject}
+                      />
+                    ),
+                  },
+                  {
+                    id: 'history',
+                    label: 'History',
+                    content: (
+                      <HistoryTab
+                        ops={ops}
+                        cursor={cursor}
+                        onRevert={handleRevert}
+                        selectedObjectId={selection}
+                        onSelectObject={actions.selectObject}
                       />
                     ),
                   },

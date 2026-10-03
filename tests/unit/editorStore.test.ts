@@ -163,20 +163,20 @@ describe('previewLines selector (ST-2)', () => {
     };
     const { store } = setup([loaded(1).result]);
     await store.getState().openBytes(file(), new Uint8Array());
-    const docId = store.getState().document!.id;
+    const docId = store.getState().document?.id ?? "";
     cache.set(docId, 0, { pageIndex: 0, lines: [line] });
     // Re-create store with the cache that has the model
     const open = vi.fn(async () => loaded(1).result);
     const registry = createDocumentRegistry();
     const storeWithCache = createEditorStore({ open, registry, pageModelCache: cache });
     await storeWithCache.getState().openBytes(file(), new Uint8Array());
-    const docId2 = storeWithCache.getState().document!.id;
+    const docId2 = storeWithCache.getState().document?.id ?? "";
     cache.set(docId2, 0, { pageIndex: 0, lines: [line] });
     const op: TextReplaceOp = { id: 'x', ts: 1, pageIndex: 0, type: 'TEXT_REPLACE', objectId: '0:1', newText: 'Edited' };
     storeWithCache.getState().pushOperation(op);
     const preview = storeWithCache.getState().previewLines(0);
     expect(preview).toHaveLength(1);
-    expect(preview[0]!.currentText).toBe('Edited');
+    expect(preview.at(0)?.currentText).toBe('Edited');
   });
 });
 
@@ -216,7 +216,7 @@ describe('Operation Log (ST-3)', () => {
     store.getState().pushOperation(makeOp(3));
     expect(store.getState().ops).toHaveLength(2);
     expect(store.getState().cursor).toBe(2);
-    expect(store.getState().ops[1]!.id).toBe('op-3');
+    expect(store.getState().ops.at(1)?.id).toBe('op-3');
   });
 
   it('undo at 0 is no-op', () => {

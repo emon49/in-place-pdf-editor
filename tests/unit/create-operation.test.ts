@@ -29,7 +29,7 @@ describe('createOperation', () => {
       }),
     );
     for (let i = 1; i < ops.length; i++) {
-      expect(ops[i]!.ts).toBeGreaterThanOrEqual(ops[i - 1]!.ts);
+      expect(ops.at(i)?.ts).toBeGreaterThanOrEqual(ops.at(i - 1)?.ts ?? 0);
     }
   });
 

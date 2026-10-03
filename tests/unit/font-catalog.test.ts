@@ -5,7 +5,7 @@ describe('font-catalog lookupCatalog', () => {
   it('returns the catalog entry for a directly registered family', () => {
     const entry = lookupCatalog('Roboto');
     expect(entry).not.toBeNull();
-    expect(entry!.family).toBe('Roboto');
+    expect(entry?.family).toBe('Roboto');
   });
 
   it('is case-insensitive', () => {
@@ -16,7 +16,7 @@ describe('font-catalog lookupCatalog', () => {
   it('returns substitute entry for Arial → Liberation Sans', () => {
     const entry = lookupCatalog('Arial');
     expect(entry).not.toBeNull();
-    expect(entry!.family).toBe('Liberation Sans');
+    expect(entry?.family).toBe('Liberation Sans');
   });
 
   it('returns substitute for Helvetica → Liberation Sans', () => {

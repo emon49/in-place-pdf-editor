@@ -69,7 +69,7 @@ export function layoutText(
     let currentWidth = 0;
 
     for (let wi = 0; wi < words.length; wi++) {
-      const word = words[wi]!;
+      const word = words[wi] ?? '';
       const spaceWidth = wi > 0 ? advanceFn(' ', style) + style.wordSpacing : 0;
       const wordWidth = [...word].reduce((sum, ch) => sum + advanceFn(ch, style), 0);
 

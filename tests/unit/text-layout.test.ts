@@ -33,9 +33,9 @@ describe('layoutText', () => {
   it('single line no wrap', () => {
     const { lines } = layoutText('Hello', STYLE, ORIGIN, 600, fixedAdvance);
     expect(lines).toHaveLength(1);
-    expect(lines[0]!.text).toBe('Hello');
-    expect(lines[0]!.x).toBe(10);
-    expect(lines[0]!.y).toBe(700);
+    expect(lines.at(0)?.text).toBe('Hello');
+    expect(lines.at(0)?.x).toBe(10);
+    expect(lines.at(0)?.y).toBe(700);
   });
 
   it('wraps at pageWidth − 40', () => {
@@ -44,8 +44,8 @@ describe('layoutText', () => {
     // 'ABCD EFG' → first word ABCD=48 fits, space+EFG=3.6+36=39.6 total=87.6>50 → wrap
     const { lines } = layoutText('ABCD EFG', STYLE, ORIGIN, 100, fixedAdvance);
     expect(lines.length).toBeGreaterThanOrEqual(2);
-    expect(lines[0]!.text).toBe('ABCD');
-    expect(lines[1]!.text).toBe('EFG');
+    expect(lines.at(0)?.text).toBe('ABCD');
+    expect(lines.at(1)?.text).toBe('EFG');
   });
 
   it('y decreases by size × lineHeight per line', () => {
@@ -53,13 +53,13 @@ describe('layoutText', () => {
     // pageWidth=30, maxWidth=30-40 negative or zero → each word on own line
     expect(lines.length).toBeGreaterThanOrEqual(2);
     const step = STYLE.size * STYLE.lineHeight;
-    expect(lines[1]!.y).toBe(lines[0]!.y! - step);
+    expect(lines.at(1)?.y).toBe((lines.at(0)?.y ?? 0) - step);
   });
 
   it('empty text returns one blank line', () => {
     const { lines } = layoutText('', STYLE, ORIGIN, 600, fixedAdvance);
     expect(lines).toHaveLength(1);
-    expect(lines[0]!.text).toBe('');
+    expect(lines.at(0)?.text).toBe('');
   });
 
   it('multi-wrap produces correct order', () => {
@@ -67,8 +67,8 @@ describe('layoutText', () => {
     // 'AA BB CC' → AA(24)+space(3.6)+BB(24)=51.6 < 70, +space+CC=51.6+3.6+24=79.2>70 → wrap at CC
     const { lines } = layoutText('AA BB CC', STYLE, ORIGIN, 120, fixedAdvance);
     expect(lines.length).toBe(2);
-    expect(lines[0]!.text).toBe('AA BB');
-    expect(lines[1]!.text).toBe('CC');
+    expect(lines.at(0)?.text).toBe('AA BB');
+    expect(lines.at(1)?.text).toBe('CC');
   });
 
   it('exact-width-no-wrap boundary: text that fills exactly maxWidth stays on one line', () => {
@@ -77,14 +77,14 @@ describe('layoutText', () => {
     // 'AB' alone = 24 ≤ 32 → stays on own line
     const { lines } = layoutText('AB', STYLE, ORIGIN, 82, fixedAdvance);
     expect(lines).toHaveLength(1);
-    expect(lines[0]!.text).toBe('AB');
+    expect(lines.at(0)?.text).toBe('AB');
   });
 
   it('newlines in text split into paragraphs', () => {
     const { lines } = layoutText('Hello\nWorld', STYLE, ORIGIN, 600, fixedAdvance);
     expect(lines).toHaveLength(2);
-    expect(lines[0]!.text).toBe('Hello');
-    expect(lines[1]!.text).toBe('World');
+    expect(lines.at(0)?.text).toBe('Hello');
+    expect(lines.at(1)?.text).toBe('World');
   });
 });
 

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,7 +74,7 @@ describe('sidebar and overlay in the app', () => {
   it('shows the Text Objects tab alone beside an open document, listing the page in reading order (8.1, 8.2)', async () => {
     openFakeDocument();
     render(<App />);
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Text Objects']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Text Objects', 'History']);
     const rows = await screen.findAllByTestId('text-row');
     expect(rows.map((r) => r.dataset.lineId)).toEqual(['0:0', '0:1', '0:2']);
     expect((await screen.findAllByTestId('text-box'))).toHaveLength(3);
@@ -220,5 +221,64 @@ describe('text editing operations (7.x)', () => {
     const cursorBefore = editorStore.getState().cursor;
     fireEvent.keyDown(editor, { key: 'Delete' });
     expect(editorStore.getState().cursor).toBe(cursorBefore);
+  });
+});
+
+describe('revert to original (10.3)', () => {
+  beforeEach(() => {
+    editorStore.setState({ ops: [], cursor: 0 });
+  });
+
+  it('revert-to-original button not shown on unedited selection', async () => {
+    openFakeDocument();
+    render(<App />);
+    fireEvent.click((await screen.findAllByTestId('text-box'))[0] as HTMLElement);
+    expect(screen.queryByTestId('revert-to-original')).toBeNull();
+  });
+
+  it('revert-to-original restores line after an edit', async () => {
+    openFakeDocument();
+    render(<App />);
+    const boxes = await screen.findAllByTestId('text-box');
+    fireEvent.dblClick(boxes[0] as HTMLElement);
+    const editor = screen.getByTestId('inline-text-editor');
+    fireEvent.change(editor, { target: { value: 'Edited text' } });
+    fireEvent.keyDown(editor, { key: 'Enter' });
+    // Select the edited box
+    fireEvent.click((await screen.findAllByTestId('text-box'))[0] as HTMLElement);
+    expect(screen.getByTestId('revert-to-original')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('revert-to-original'));
+    // After revert, the op cursor should have advanced (REVERT op pushed)
+    const { ops, cursor } = editorStore.getState();
+    const lastOp = ops[cursor - 1];
+    expect(lastOp?.type).toBe('REVERT');
+  });
+});
+
+describe('patches and masks update on undo/redo (8.4)', () => {
+  beforeEach(() => {
+    editorStore.setState({ ops: [], cursor: 0 });
+  });
+
+  it('undo removes patch and mask; redo restores them', async () => {
+    openFakeDocument();
+    render(<App />);
+    const boxes = await screen.findAllByTestId('text-box');
+    // Edit text to create a patch and mask
+    fireEvent.dblClick(boxes[0] as HTMLElement);
+    const editor = screen.getByTestId('inline-text-editor');
+    fireEvent.change(editor, { target: { value: 'New text' } });
+    fireEvent.keyDown(editor, { key: 'Enter' });
+    // Patch and mask should be visible
+    expect(await screen.findByTestId('mask')).toBeTruthy();
+    expect(screen.getByTestId('patch')).toBeTruthy();
+    // Undo removes them
+    act(() => editorStore.getState().undo());
+    expect(screen.queryByTestId('mask')).toBeNull();
+    expect(screen.queryByTestId('patch')).toBeNull();
+    // Redo restores them
+    act(() => editorStore.getState().redo());
+    expect(screen.queryByTestId('mask')).toBeTruthy();
+    expect(screen.queryByTestId('patch')).toBeTruthy();
   });
 });

@@ -120,7 +120,7 @@ export async function fetchGoogleFont(
     const css = await cssResp.text();
     const match = /url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.woff2)\)/.exec(css);
     if (!match) return null;
-    const woff2Url = match[1]!;
+    const woff2Url = match[1] ?? '';
     const fontResp = await fetch(woff2Url);
     if (!fontResp.ok) return null;
     const data = await fontResp.arrayBuffer();

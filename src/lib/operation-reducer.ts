@@ -176,7 +176,8 @@ export function applyOperations(
   // Combine: existing lines (in original order) + added lines.
   const result: PreviewLine[] = [];
   for (const line of lines) {
-    result.push(previewMap.get(line.id)!);
+    const preview = previewMap.get(line.id);
+    if (preview) result.push(preview);
   }
   for (const added of addedLines) {
     // If a TEXT_ADD was reverted, exclude the added line.
