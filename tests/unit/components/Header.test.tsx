@@ -19,6 +19,9 @@ function renderHeader(overrides: Partial<HeaderProps> = {}) {
     onZoomOut: vi.fn(),
     onActualSize: vi.fn(),
     onFit: vi.fn(),
+    addTextMode: false,
+    onToggleAddText: vi.fn(),
+    editCount: 0,
     ...overrides,
   };
   render(<Header {...props} />);

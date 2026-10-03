@@ -5,6 +5,7 @@ import type { LoadError } from '../../src/lib/load-errors';
 import type { LoadedDocument } from '../../src/lib/pdf-loader';
 import { err, ok, type Result } from '../../src/lib/result';
 import { createEditorStore } from '../../src/store/editorStore';
+import type { TextReplaceOp } from '../../src/types/operations';
 
 function fakePdf(numPages: number, userUnit = 1) {
   const destroy = vi.fn(async () => undefined);
@@ -143,5 +144,116 @@ describe('navigation and zoom', () => {
     expect(s().view).toMatchObject({ zoom: 1.25, fitMode: null });
     s().applyFitZoom(0.5);
     expect(s().view.zoom).toBe(1.25);
+  });
+});
+
+describe('previewLines selector (ST-2)', () => {
+  it('returns PreviewLines reflecting operations', async () => {
+    const { createPageModelCache } = await import('../../src/lib/page-model');
+    const cache = createPageModelCache();
+    const line = {
+      id: '0:1', pageIndex: 0, text: 'Original', origin: { x: 0, y: 0 },
+      box: { x: 0, y: 0, width: 100, height: 12 }, matrix: [1, 0, 0, 1, 0, 0] as const,
+      fontRef: 'f', family: 'Helvetica', subsetPrefix: null, fontClass: 'sans' as const,
+      bold: false, italic: false, fontSize: 12, hScale: 100, charSpacing: 0,
+      wordSpacing: 0, rise: 0, renderMode: 0, lineHeight: 1.2,
+      color: { hex: '#000', source: 'exact' as const },
+      background: { status: 'pending' as const }, lockReason: null,
+      font: { rawName: 'Helvetica', subtype: null, embedding: null, licence: null, encoding: null, coverage: null },
+    };
+    const { store } = setup([loaded(1).result]);
+    await store.getState().openBytes(file(), new Uint8Array());
+    const docId = store.getState().document!.id;
+    cache.set(docId, 0, { pageIndex: 0, lines: [line] });
+    // Re-create store with the cache that has the model
+    const open = vi.fn(async () => loaded(1).result);
+    const registry = createDocumentRegistry();
+    const storeWithCache = createEditorStore({ open, registry, pageModelCache: cache });
+    await storeWithCache.getState().openBytes(file(), new Uint8Array());
+    const docId2 = storeWithCache.getState().document!.id;
+    cache.set(docId2, 0, { pageIndex: 0, lines: [line] });
+    const op: TextReplaceOp = { id: 'x', ts: 1, pageIndex: 0, type: 'TEXT_REPLACE', objectId: '0:1', newText: 'Edited' };
+    storeWithCache.getState().pushOperation(op);
+    const preview = storeWithCache.getState().previewLines(0);
+    expect(preview).toHaveLength(1);
+    expect(preview[0]!.currentText).toBe('Edited');
+  });
+});
+
+describe('Operation Log (ST-3)', () => {
+  function makeOp(n: number): TextReplaceOp {
+    return { id: `op-${n}`, ts: n, pageIndex: 0, type: 'TEXT_REPLACE', objectId: 'line-1', newText: `text-${n}` };
+  }
+
+  it('push increments cursor and appends to ops', () => {
+    const { store } = setup([]);
+    store.getState().pushOperation(makeOp(1));
+    expect(store.getState().cursor).toBe(1);
+    expect(store.getState().ops).toHaveLength(1);
+  });
+
+  it('undo decrements cursor', () => {
+    const { store } = setup([]);
+    store.getState().pushOperation(makeOp(1));
+    store.getState().pushOperation(makeOp(2));
+    store.getState().undo();
+    expect(store.getState().cursor).toBe(1);
+  });
+
+  it('redo increments cursor', () => {
+    const { store } = setup([]);
+    store.getState().pushOperation(makeOp(1));
+    store.getState().undo();
+    store.getState().redo();
+    expect(store.getState().cursor).toBe(1);
+  });
+
+  it('new edit after undo discards redo tail', () => {
+    const { store } = setup([]);
+    store.getState().pushOperation(makeOp(1));
+    store.getState().pushOperation(makeOp(2));
+    store.getState().undo();
+    store.getState().pushOperation(makeOp(3));
+    expect(store.getState().ops).toHaveLength(2);
+    expect(store.getState().cursor).toBe(2);
+    expect(store.getState().ops[1]!.id).toBe('op-3');
+  });
+
+  it('undo at 0 is no-op', () => {
+    const { store } = setup([]);
+    store.getState().undo();
+    expect(store.getState().cursor).toBe(0);
+  });
+
+  it('document change clears the log', async () => {
+    const { store } = setup([loaded(2).result, loaded(2).result]);
+    await store.getState().openBytes(file(), new Uint8Array());
+    store.getState().pushOperation(makeOp(1));
+    await store.getState().openBytes(file(), new Uint8Array());
+    expect(store.getState().ops).toHaveLength(0);
+    expect(store.getState().cursor).toBe(0);
+  });
+});
+
+describe('addTextMode (6.4)', () => {
+  it('toggles on', () => {
+    const { store } = setup([]);
+    expect(store.getState().addTextMode).toBe(false);
+    store.getState().setAddTextMode(true);
+    expect(store.getState().addTextMode).toBe(true);
+  });
+
+  it('toggles off', () => {
+    const { store } = setup([]);
+    store.getState().setAddTextMode(true);
+    store.getState().setAddTextMode(false);
+    expect(store.getState().addTextMode).toBe(false);
+  });
+
+  it('resets on document change', async () => {
+    const { store } = setup([loaded(1).result]);
+    store.getState().setAddTextMode(true);
+    await store.getState().openBytes(file(), new Uint8Array());
+    expect(store.getState().addTextMode).toBe(false);
   });
 });

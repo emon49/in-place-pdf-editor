@@ -1,4 +1,4 @@
-import { FileText, FolderOpen } from 'lucide-react';
+import { FileText, FolderOpen, Type } from 'lucide-react';
 import { useRef } from 'react';
 import { SAMPLE_CATALOG, type SampleId } from '../lib/sample-catalog';
 import type { FitMode } from '../store/editorStore';
@@ -18,6 +18,9 @@ export interface HeaderProps {
   onZoomOut: () => void;
   onActualSize: () => void;
   onFit: (mode: FitMode) => void;
+  addTextMode: boolean;
+  onToggleAddText: () => void;
+  editCount: number;
 }
 
 /** Top toolbar (PRD §7.1, M0 subset). */
@@ -78,7 +81,29 @@ export function Header(props: HeaderProps) {
           <span className="max-w-60 truncate text-sm text-slate-500" title={props.documentName ?? ''}>
             {props.documentName}
           </span>
+          {props.editCount > 0 && (
+            <span
+              data-testid="edit-count-badge"
+              className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700"
+            >
+              {props.editCount} {props.editCount === 1 ? 'edit' : 'edits'} applied
+            </span>
+          )}
           <div className="ml-auto flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              data-testid="add-text-button"
+              onClick={props.onToggleAddText}
+              aria-pressed={props.addTextMode}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
+                props.addTextMode
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <Type aria-hidden="true" className="size-4" />
+              Add text
+            </button>
             <PageNavigator pageIndex={props.pageIndex} pageCount={props.pageCount} onGoTo={props.onGoToPage} />
             <ZoomControls
               zoom={props.zoom}

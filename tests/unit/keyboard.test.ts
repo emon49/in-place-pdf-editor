@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { viewerKeyAction, type KeyLike } from '../../src/lib/keyboard';
 
 const key = (k: string, extra: Partial<KeyLike> = {}): KeyLike => ({
-  key: k, ctrlKey: false, metaKey: false, altKey: false, target: { tagName: 'DIV' } as unknown as EventTarget, inViewer: true, ...extra,
+  key: k, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, target: { tagName: 'DIV' } as unknown as EventTarget, inViewer: true, ...extra,
 });
 
 describe('viewer keyboard shortcuts', () => {
@@ -47,5 +47,27 @@ describe('viewer keyboard shortcuts', () => {
     expect(viewerKeyAction(key('ArrowDown'))).toBeNull();
     expect(viewerKeyAction(key('PageDown', { altKey: true }))).toBeNull();
     expect(viewerKeyAction(key('s', { ctrlKey: true }))).toBeNull();
+  });
+
+  it('Ctrl+Z → undo (global, not gated on inViewer)', () => {
+    expect(viewerKeyAction(key('z', { ctrlKey: true }))).toBe('undo');
+    expect(viewerKeyAction(key('z', { ctrlKey: true, inViewer: false }))).toBe('undo');
+    expect(viewerKeyAction(key('z', { metaKey: true }))).toBe('undo');
+  });
+
+  it('Ctrl+Shift+Z → redo', () => {
+    expect(viewerKeyAction(key('Z', { ctrlKey: true, shiftKey: true }))).toBe('redo');
+    expect(viewerKeyAction(key('Z', { metaKey: true, shiftKey: true }))).toBe('redo');
+  });
+
+  it('Ctrl+Y → redo', () => {
+    expect(viewerKeyAction(key('y', { ctrlKey: true }))).toBe('redo');
+    expect(viewerKeyAction(key('Y', { ctrlKey: true }))).toBe('redo');
+  });
+
+  it('undo/redo are suppressed when focus is in a text input (browser native undo handles it)', () => {
+    const input = { tagName: 'INPUT', type: 'text' } as unknown as EventTarget;
+    expect(viewerKeyAction(key('z', { ctrlKey: true, target: input }))).toBeNull();
+    expect(viewerKeyAction(key('y', { ctrlKey: true, target: input }))).toBeNull();
   });
 });

@@ -8,6 +8,8 @@ import type { LoadedDocument } from '../lib/pdf-loader';
 import { pickSingleFile, type FileLike } from '../lib/pdf-sniff';
 import type { Result } from '../lib/result';
 import { clampZoom, nextPreset, prevPreset } from '../lib/zoom';
+import { applyOperations } from '../lib/operation-reducer';
+import type { EditOperation, PreviewLine } from '../types/operations';
 
 export type FitMode = 'width' | 'page';
 
@@ -44,6 +46,12 @@ export interface EditorState {
   readonly pageModels: Readonly<Record<string, PageModelEntry>>;
   /** Id of the selected Text Line on the active page (single selection). */
   readonly selection: string | null;
+  /** Append-only operation log (ADR-0003). Cleared on document change. */
+  readonly ops: EditOperation[];
+  /** Undo cursor: only ops[0..cursor) are active. */
+  readonly cursor: number;
+  /** True when add-text tool is active. */
+  readonly addTextMode: boolean;
 }
 
 export interface EditorActions {
@@ -69,6 +77,16 @@ export interface EditorActions {
   selectObject(id: string | null): void;
   /** Moves the selection to the next/previous Text Line in reading order. */
   stepSelection(direction: 1 | -1): void;
+  /** Appends an operation and advances the cursor. Discards any redo tail. */
+  pushOperation(op: EditOperation): void;
+  /** Moves cursor back by one (undo). No-op at 0. */
+  undo(): void;
+  /** Moves cursor forward by one (redo). No-op at end. */
+  redo(): void;
+  /** Returns the preview lines for a given page, with all active operations applied. */
+  previewLines(pageIndex: number): PreviewLine[];
+  /** Toggles add-text mode. */
+  setAddTextMode(active: boolean): void;
 }
 
 export type EditorStore = StoreApi<EditorState & EditorActions>;
@@ -102,6 +120,9 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
       notice: null,
       pageModels: {},
       selection: null,
+      ops: [],
+      cursor: 0,
+      addTextMode: false,
 
       async openFiles(files) {
         const picked = pickSingleFile(files);
@@ -140,6 +161,10 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
           loading: false,
           error: null,
           notice: documentNotice({ byteLength: originalBytes.byteLength, pageCount, userUnit: firstPage.userUnit }),
+          // Clear the operation log on document change (D1).
+          ops: [],
+          cursor: 0,
+          addTextMode: false,
         }));
         if (previous) {
           cache.clear(previous.id);
@@ -204,6 +229,30 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
           const entry = s.pageModels[key];
           return entry ? { pageModels: { ...s.pageModels, [key]: { ...entry, revision: entry.revision + 1 } } } : s;
         });
+      },
+
+      pushOperation(op) {
+        set((s) => {
+          // Discard the redo tail when a new operation is pushed after an undo.
+          const trimmed = s.ops.slice(0, s.cursor);
+          return { ops: [...trimmed, op], cursor: s.cursor + 1 };
+        });
+      },
+      undo() {
+        set((s) => (s.cursor > 0 ? { cursor: s.cursor - 1 } : s));
+      },
+      redo() {
+        set((s) => (s.cursor < s.ops.length ? { cursor: s.cursor + 1 } : s));
+      },
+      previewLines(pageIndex) {
+        const { document, ops, cursor } = get();
+        if (!document) return [];
+        const model = cache.get(document.id, pageIndex);
+        if (!model) return [];
+        return applyOperations(model.lines, ops, cursor);
+      },
+      setAddTextMode(active) {
+        set({ addTextMode: active });
       },
 
       selectObject: (id) => set({ selection: id }),

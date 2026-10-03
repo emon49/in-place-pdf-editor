@@ -39,6 +39,8 @@ export function App() {
   const loading = useEditor((s) => s.loading);
   const error = useEditor((s) => s.error);
   const notice = useEditor((s) => s.notice);
+  const addTextMode = useEditor((s) => s.addTextMode);
+  const cursor = useEditor((s) => s.cursor);
   const actions = editorStore.getState();
   const viewerRef = useRef<HTMLDivElement>(null);
   const selection = useEditor((s) => s.selection);
@@ -78,6 +80,7 @@ export function App() {
         ctrlKey: e.ctrlKey,
         metaKey: e.metaKey,
         altKey: e.altKey,
+        shiftKey: e.shiftKey,
         target: e.target,
         inViewer: e.target instanceof Node && !!viewerRef.current?.contains(e.target),
       });
@@ -106,6 +109,9 @@ export function App() {
         onZoomOut={actions.zoomOut}
         onActualSize={() => actions.setZoom(1)}
         onFit={actions.setFitMode}
+        addTextMode={addTextMode}
+        onToggleAddText={() => actions.setAddTextMode(!addTextMode)}
+        editCount={cursor}
       />
       <UpdatePrompt />
       {error && (
