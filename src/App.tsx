@@ -9,15 +9,17 @@ import { MaskLayer } from './components/MaskLayer';
 import { PatchLayer } from './components/PatchLayer';
 import { PDFUploader } from './components/PDFUploader';
 import { PDFViewer } from './components/PDFViewer';
-import { PropertiesPanel } from './components/PropertiesPanel';
+import { ImagePropertiesPanel, PropertiesPanel } from './components/PropertiesPanel';
 import { Sidebar } from './components/Sidebar';
 import { StyleControls } from './components/StyleControls';
 import { TextObjectsTab } from './components/TextObjectsTab';
+import { ImageLayer } from './components/ImageLayer';
+import { ImagesTab } from './components/ImagesTab';
 import { TextOverlay } from './components/TextOverlay';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { createOperation } from './lib/create-operation';
 import { layoutText } from './lib/text-layout';
-import type { ObjectDeleteOp, PreviewLine, RevertOp, TextAddOp, TextReplaceOp, TextStyle, TextStyleChangeOp } from './types/operations';
+import type { FitMode as ImageFitMode, ObjectDeleteOp, PreviewLine, RevertOp, TextAddOp, TextReplaceOp, TextStyle, TextStyleChangeOp } from './types/operations';
 import { NOTICE_MESSAGES } from './lib/document-notice';
 import { nudgeKeyAction, viewerKeyAction } from './lib/keyboard';
 import { LOAD_ERROR_MESSAGES } from './lib/load-errors';
@@ -43,7 +45,7 @@ const DEFAULT_ADD_TEXT_STYLE: TextStyle = {
   renderMode: 0,
 };
 
-/** Layer 2 + Layer 4 for the page the viewer has loaded. */
+/** Layer 2 + Layer 3 + Layer 4 for the page the viewer has loaded. */
 function PageOverlay({
   documentId,
   pageIndex,
@@ -57,6 +59,8 @@ function PageOverlay({
   onCommitAddText,
   onCancelAddText,
   onMove,
+  onImageResize,
+  onImageReplace,
 }: {
   documentId: string;
   pageIndex: number;
@@ -70,11 +74,14 @@ function PageOverlay({
   onCommitAddText: (text: string, style: TextStyle) => void;
   onCancelAddText: () => void;
   onMove?: (id: string, to: Point) => void;
+  onImageResize?: (id: string, to: import('./lib/coordinates').Rect) => void;
+  onImageReplace?: (id: string, file: File, fit: ImageFitMode) => void;
 }) {
   const { status, model } = usePageModel(documentId, pageIndex);
   const selection = useEditor((s) => s.selection);
-  const { selectObject, stepSelection, previewLines } = editorStore.getState();
+  const { selectObject, stepSelection, previewLines, previewImages } = editorStore.getState();
   const rawLines = model ? previewLines(pageIndex) : [];
+  const images = model ? previewImages(pageIndex) : [];
   const pageWidth = geometry.box[2] - geometry.box[0];
   const lines: PreviewLine[] = rawLines.map((line) => {
     if (line.deleted) return line;
@@ -150,11 +157,23 @@ function PageOverlay({
           lines={lines}
           geometry={geometry}
           zoom={zoom}
-          selectedId={editingId ?? selection}
+          selectedId={editingId ?? (selection && !selection.startsWith('img:') ? selection : null)}
           onSelect={selectObject}
           onStep={stepSelection}
           onDoubleClick={onStartEdit}
           onMove={onMove}
+        />
+      )}
+      {model && images.length > 0 && (
+        <ImageLayer
+          images={images}
+          geometry={geometry}
+          zoom={zoom}
+          selectedId={selection?.startsWith('img:') ? selection : null}
+          onSelect={selectObject}
+          onMove={onMove}
+          onResize={onImageResize}
+          onReplace={onImageReplace}
         />
       )}
       {editingLine && (
@@ -202,6 +221,7 @@ export function App() {
   const [restoreSession, setRestoreSession] = useState<SessionData | null>(null);
   const docIdForPage = document?.id;
   const activeModel = usePageModel(docIdForPage, view.pageIndex);
+  const activeImages = activeModel.model ? editorStore.getState().previewImages(view.pageIndex) : [];
   usePageSampling(docIdForPage, view.pageIndex, rendered && rendered.documentId === docIdForPage ? rendered.pageIndex : null);
   const currentGeometryRef = useRef<{ geometry: PageGeometry; zoom: number } | null>(null);
 
@@ -316,14 +336,27 @@ export function App() {
     s.moveObject(id, to, geo);
   }, [pageGeometry]);
 
+  const handleImageResize = useCallback((id: string, to: import('./lib/coordinates').Rect) => {
+    editorStore.getState().resizeImage(id, to);
+  }, []);
+
+  const handleImageReplace = useCallback((id: string, file: File, fit: ImageFitMode) => {
+    void editorStore.getState().replaceImage(id, file, fit);
+  }, []);
+
   // Derive selected line's current style and resolved font for StyleControls
   const selectedLine = (() => {
-    if (!selection || !document) return null;
+    if (!selection || selection.startsWith('img:') || !document) return null;
     const preview = editorStore.getState().previewLines(view.pageIndex);
     return preview.find((l) => l.id === selection) ?? null;
   })();
   const selectedStyle = selectedLine?.currentStyle ?? null;
   const selectedResolvedFont = selectedLine?.resolvedFont ?? null;
+
+  const selectedImage = (() => {
+    if (!selection?.startsWith('img:') || !document) return null;
+    return editorStore.getState().previewImages(view.pageIndex).find((img) => img.id === selection) ?? null;
+  })();
 
   const handleRevert = useCallback((opId: string) => {
     const s = editorStore.getState();
@@ -580,6 +613,17 @@ export function App() {
                     ),
                   },
                   {
+                    id: 'images',
+                    label: 'Images',
+                    content: activeImages.length > 0 ? (
+                      <ImagesTab
+                        images={activeImages}
+                        selectedId={selection?.startsWith('img:') ? selection : null}
+                        onSelect={actions.selectObject}
+                      />
+                    ) : null,
+                  },
+                  {
                     id: 'history',
                     label: 'History',
                     content: (
@@ -625,6 +669,8 @@ export function App() {
                           editorStore.getState().setAddTextMode(false);
                         }}
                         onMove={handleMove}
+                        onImageResize={handleImageResize}
+                        onImageReplace={handleImageReplace}
                       />
                     );
                   }}
@@ -636,6 +682,15 @@ export function App() {
                   geometry={pageGeometry}
                   onMove={(to) => handleMove(selection, to)}
                   onStyleChange={handleStyleChange}
+                />
+              )}
+              {selection && selectedImage && pageGeometry && (
+                <ImagePropertiesPanel
+                  image={selectedImage}
+                  geometry={pageGeometry}
+                  onMove={(to) => handleMove(selection, to)}
+                  onResize={(to) => handleImageResize(selection, to)}
+                  onReplace={(file, fit) => handleImageReplace(selection, file, fit)}
                 />
               )}
             </div>

@@ -1,5 +1,8 @@
 import type { Point, Rect } from '../lib/coordinates';
-import type { FontClass, TextLine } from './page-model';
+import type { FontClass, ImageObject, TextLine } from './page-model';
+
+/** Fit mode for image replacement (IM-3). */
+export type FitMode = 'contain' | 'cover' | 'fill';
 
 /** Hex color string, e.g. `#cc1a1a`. */
 export type CssHex = string;
@@ -114,6 +117,23 @@ export interface ObjectDeleteOp extends OpBase {
   readonly objectId: string;
 }
 
+export interface ImageReplaceOp extends OpBase {
+  readonly type: 'IMAGE_REPLACE';
+  readonly objectId: string;
+  /** UUID key into IndexedDB blob store (D1). */
+  readonly blobKey: string;
+  readonly fit: FitMode;
+}
+
+export interface ObjectResizeOp extends OpBase {
+  readonly type: 'OBJECT_RESIZE';
+  readonly objectId: string;
+  /** Original bounding box in Page Space (D5). */
+  readonly from: Rect;
+  /** New bounding box in Page Space (D5). */
+  readonly to: Rect;
+}
+
 export interface RevertOp extends OpBase {
   readonly type: 'REVERT';
   /** IDs of operations that this REVERT cancels. */
@@ -126,6 +146,8 @@ export type EditOperation =
   | TextAddOp
   | ObjectMoveOp
   | ObjectDeleteOp
+  | ImageReplaceOp
+  | ObjectResizeOp
   | RevertOp;
 
 export interface OperationLog {
@@ -142,6 +164,18 @@ export interface LayoutLine {
   readonly x: number;
   readonly y: number;
   readonly width: number;
+}
+
+/** ImageObject extended with the results of applied operations. */
+export interface PreviewImage extends ImageObject {
+  /** Effective bounding box after moves; equals `bbox` when not moved. */
+  readonly currentBox: Rect;
+  /** True when an OBJECT_DELETE is active on this image. */
+  readonly deleted: boolean;
+  /** Blob key from the active IMAGE_REPLACE, or null if unchanged. */
+  readonly blobKey: string | null;
+  /** Fit mode from the active IMAGE_REPLACE, or null if unchanged. */
+  readonly fit: FitMode | null;
 }
 
 /** TextLine extended with the results of applied operations. */

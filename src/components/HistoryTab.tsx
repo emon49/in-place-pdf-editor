@@ -20,6 +20,8 @@ function opSummary(op: EditOperation): string {
     case 'TEXT_ADD': return `Added text "${op.text.slice(0, 30)}${op.text.length > 30 ? '…' : ''}"`;
     case 'OBJECT_MOVE': return `Moved object ${op.objectId}`;
     case 'OBJECT_DELETE': return `Deleted object ${op.objectId}`;
+    case 'IMAGE_REPLACE': return `Replaced image ${op.objectId}`;
+    case 'OBJECT_RESIZE': return `Resized object ${op.objectId}`;
     case 'REVERT': return `Reverted ${op.targetOpIds.length} operation${op.targetOpIds.length > 1 ? 's' : ''}`;
   }
 }
@@ -31,6 +33,8 @@ function opIcon(op: EditOperation): string {
     case 'TEXT_ADD': return '➕';
     case 'OBJECT_MOVE': return '↔️';
     case 'OBJECT_DELETE': return '🗑️';
+    case 'IMAGE_REPLACE': return '🖼️';
+    case 'OBJECT_RESIZE': return '⤡';
     case 'REVERT': return '↩️';
   }
 }

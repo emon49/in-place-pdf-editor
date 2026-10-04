@@ -91,10 +91,25 @@ export interface TextLine {
   readonly font: FontFacts;
 }
 
+/** An image embedded in the PDF page (IM-1). */
+export interface ImageObject {
+  /** `"img:<pageIndex>:<sequence>"`, stable across re-extraction. */
+  readonly id: string;
+  readonly pageIndex: number;
+  /** Bounding box in Page Space (bottom-left origin). */
+  readonly bbox: Rect;
+  /** True when the color space is unsupported (e.g. CMYK); image is read-only. */
+  readonly locked: boolean;
+  /** Sampled background color for masking; null until sampled. */
+  readonly maskColor: string | null;
+}
+
 export interface PageModel {
   readonly pageIndex: number;
   /** In reading order. */
   readonly lines: readonly TextLine[];
+  /** Detected image objects on this page. */
+  readonly images: readonly ImageObject[];
 }
 
 export type PageModelStatus = 'idle' | 'extracting' | 'ready' | 'failed';

@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
+
+vi.mock('../../src/lib/image-replacement-engine', () => ({
+  storeBlob: vi.fn(async () => 'mock-blob-key'),
+  loadBlob: vi.fn(async () => null),
+  fitImageRect: vi.fn(),
+}));
 import { createDocumentRegistry } from '../../src/lib/document-registry';
 import type { LoadError } from '../../src/lib/load-errors';
 import type { LoadedDocument } from '../../src/lib/pdf-loader';
@@ -164,14 +170,14 @@ describe('previewLines selector (ST-2)', () => {
     const { store } = setup([loaded(1).result]);
     await store.getState().openBytes(file(), new Uint8Array());
     const docId = store.getState().document?.id ?? "";
-    cache.set(docId, 0, { pageIndex: 0, lines: [line] });
+    cache.set(docId, 0, { pageIndex: 0, lines: [line], images: [] });
     // Re-create store with the cache that has the model
     const open = vi.fn(async () => loaded(1).result);
     const registry = createDocumentRegistry();
     const storeWithCache = createEditorStore({ open, registry, pageModelCache: cache });
     await storeWithCache.getState().openBytes(file(), new Uint8Array());
     const docId2 = storeWithCache.getState().document?.id ?? "";
-    cache.set(docId2, 0, { pageIndex: 0, lines: [line] });
+    cache.set(docId2, 0, { pageIndex: 0, lines: [line], images: [] });
     const op: TextReplaceOp = { id: 'x', ts: 1, pageIndex: 0, type: 'TEXT_REPLACE', objectId: '0:1', newText: 'Edited' };
     storeWithCache.getState().pushOperation(op);
     const preview = storeWithCache.getState().previewLines(0);
@@ -255,5 +261,52 @@ describe('addTextMode (6.4)', () => {
     store.getState().setAddTextMode(true);
     await store.getState().openBytes(file(), new Uint8Array());
     expect(store.getState().addTextMode).toBe(false);
+  });
+});
+
+describe('replaceImage / resizeImage (IM-2, MV-7)', () => {
+  const imageObj = {
+    id: 'img:0:0', pageIndex: 0,
+    bbox: { x: 10, y: 20, width: 100, height: 80 },
+    locked: false, maskColor: null,
+  };
+
+  async function storeWithImage() {
+    const { createPageModelCache } = await import('../../src/lib/page-model');
+    const imgCache = createPageModelCache();
+    const open = vi.fn(async () => loaded(1).result);
+    const registry = createDocumentRegistry();
+    const s = createEditorStore({ open, registry, pageModelCache: imgCache });
+    await s.getState().openBytes(file(), new Uint8Array());
+    const docId = s.getState().document?.id ?? '';
+    imgCache.set(docId, 0, { pageIndex: 0, lines: [], images: [imageObj] });
+    return s;
+  }
+
+  it('replaceImage produces one IMAGE_REPLACE in the log', async () => {
+    const s = await storeWithImage();
+    const f = new File([new Uint8Array([1, 2, 3])], 'img.png', { type: 'image/png' });
+    await s.getState().replaceImage('img:0:0', f, 'contain');
+    const ops = s.getState().ops;
+    expect(ops).toHaveLength(1);
+    const firstOp = ops[0];
+    expect(firstOp?.type).toBe('IMAGE_REPLACE');
+    const op = firstOp as import('../../src/types/operations').ImageReplaceOp;
+    expect(op.objectId).toBe('img:0:0');
+    expect(op.fit).toBe('contain');
+    expect(typeof op.blobKey).toBe('string');
+  });
+
+  it('resizeImage produces one OBJECT_RESIZE in the log', async () => {
+    const s = await storeWithImage();
+    const newBox = { x: 10, y: 20, width: 120, height: 90 };
+    s.getState().resizeImage('img:0:0', newBox);
+    const ops = s.getState().ops;
+    expect(ops).toHaveLength(1);
+    const firstOp = ops[0];
+    expect(firstOp?.type).toBe('OBJECT_RESIZE');
+    const op = firstOp as import('../../src/types/operations').ObjectResizeOp;
+    expect(op.to).toEqual(newBox);
+    expect(op.from).toEqual(imageObj.bbox);
   });
 });

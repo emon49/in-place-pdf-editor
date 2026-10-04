@@ -39,9 +39,9 @@ const lines = [line(0, 'Quarterly report', 700), line(1, 'Total amount due', 600
 function openFakeDocument(opts: { page0?: PageModel | 'failed' | 'extracting' } = {}) {
   const pdf = { numPages: 2, getPage: async () => fakePage, loadingTask: { destroy: async () => undefined } } as unknown as PDFDocumentProxy;
   const id = documentRegistry.register({ pdf, originalBytes: new Uint8Array(1) });
-  const first = opts.page0 ?? { pageIndex: 0, lines };
+  const first = opts.page0 ?? { pageIndex: 0, lines, images: [] };
   if (typeof first === 'object') pageModelCache.set(id, 0, first);
-  pageModelCache.set(id, 1, { pageIndex: 1, lines: [] });
+  pageModelCache.set(id, 1, { pageIndex: 1, lines: [], images: [] });
   const status = typeof first === 'object' ? 'ready' : first;
   editorStore.setState({
     document: { id, name: 'a.pdf', byteLength: 1, pageCount: 2 },

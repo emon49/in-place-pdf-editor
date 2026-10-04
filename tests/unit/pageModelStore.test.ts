@@ -8,7 +8,7 @@ import { createEditorStore } from '../../src/store/editorStore';
 import type { PageModel, TextLine } from '../../src/types/page-model';
 
 const line = (id: string): TextLine => ({ id }) as TextLine;
-const model = (pageIndex: number, ids: string[] = []): PageModel => ({ pageIndex, lines: ids.map(line) });
+const model = (pageIndex: number, ids: string[] = []): PageModel => ({ pageIndex, lines: ids.map(line), images: [] });
 
 function setup(extract: (documentId: string, pageIndex: number) => Promise<PageModel>, pageCount = 100) {
   const results = () => {

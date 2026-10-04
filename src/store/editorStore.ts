@@ -8,7 +8,7 @@ import type { LoadedDocument } from '../lib/pdf-loader';
 import { pickSingleFile, type FileLike } from '../lib/pdf-sniff';
 import type { Result } from '../lib/result';
 import { clampZoom, nextPreset, prevPreset } from '../lib/zoom';
-import { applyOperations } from '../lib/operation-reducer';
+import { applyImageOperations, applyOperations } from '../lib/operation-reducer';
 import {
   clampToSafeArea,
   displayRectToPage,
@@ -18,7 +18,9 @@ import {
   type Point,
 } from '../lib/coordinates';
 import { createOperation } from '../lib/create-operation';
-import type { EditOperation, ObjectMoveOp, PreviewLine } from '../types/operations';
+import { storeBlob } from '../lib/image-replacement-engine';
+import type { EditOperation, FitMode as ImageFitMode, ImageReplaceOp, ObjectDeleteOp, ObjectMoveOp, ObjectResizeOp, PreviewImage, PreviewLine } from '../types/operations';
+import type { Rect } from '../lib/coordinates';
 
 export type FitMode = 'width' | 'page';
 
@@ -96,12 +98,20 @@ export interface EditorActions {
   redo(): void;
   /** Returns the preview lines for a given page, with all active operations applied. */
   previewLines(pageIndex: number): PreviewLine[];
+  /** Returns the preview images for a given page, with all active operations applied. */
+  previewImages(pageIndex: number): PreviewImage[];
   /** Toggles add-text mode. */
   setAddTextMode(active: boolean): void;
   /** Moves an object to the given page-space position, clamped to the Safe Area. */
   moveObject(objectId: string, to: Point, geometry: PageGeometry): void;
   /** Nudges the selected object in the given direction, debouncing a burst into one OBJECT_MOVE. */
   nudgeObject(direction: 'up' | 'down' | 'left' | 'right', large: boolean, geometry: PageGeometry): void;
+  /** Replace the selected image with a new file, storing the blob and appending IMAGE_REPLACE. */
+  replaceImage(objectId: string, file: File, fit: ImageFitMode): Promise<void>;
+  /** Resize an image to the given bounding box (Page Space) and append OBJECT_RESIZE. */
+  resizeImage(objectId: string, to: Rect): void;
+  /** Delete the selected object (text or image) and append OBJECT_DELETE. */
+  deleteObject(objectId: string): void;
 }
 
 export type EditorStore = StoreApi<EditorState & EditorActions>;
@@ -283,6 +293,13 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
           return { ...line, currentBox: { ...line.currentBox, x: to.x, y: to.y } };
         });
       },
+      previewImages(pageIndex) {
+        const { document, ops, cursor } = get();
+        if (!document) return [];
+        const model = cache.get(document.id, pageIndex);
+        if (!model) return [];
+        return applyImageOperations(model.images, ops, cursor);
+      },
       setAddTextMode(active) {
         set({ addTextMode: active });
       },
@@ -371,6 +388,43 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
             );
           }
         }, 80);
+      },
+
+      async replaceImage(objectId, file, fit) {
+        const { view } = get();
+        const blobKey = await storeBlob(file);
+        get().pushOperation(
+          createOperation<ImageReplaceOp>({
+            type: 'IMAGE_REPLACE',
+            objectId,
+            blobKey,
+            fit,
+            pageIndex: view.pageIndex,
+          }),
+        );
+      },
+
+      resizeImage(objectId, to) {
+        const { view } = get();
+        const images = cache.get(get().document?.id ?? '', view.pageIndex)?.images ?? [];
+        const img = images.find((i) => i.id === objectId);
+        if (!img) return;
+        get().pushOperation(
+          createOperation<ObjectResizeOp>({
+            type: 'OBJECT_RESIZE',
+            objectId,
+            from: img.bbox,
+            to,
+            pageIndex: view.pageIndex,
+          }),
+        );
+      },
+
+      deleteObject(objectId) {
+        const { view } = get();
+        get().pushOperation(
+          createOperation<ObjectDeleteOp>({ type: 'OBJECT_DELETE', objectId, pageIndex: view.pageIndex }),
+        );
       },
 
       selectObject: (id) => set({ selection: id }),

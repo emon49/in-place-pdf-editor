@@ -1,7 +1,10 @@
-import type { TextLine } from '../types/page-model';
+import type { ImageObject, TextLine } from '../types/page-model';
 import type {
   EditOperation,
+  ImageReplaceOp,
   ObjectMoveOp,
+  ObjectResizeOp,
+  PreviewImage,
   PreviewLine,
   TextStyle,
 } from '../types/operations';
@@ -182,6 +185,11 @@ export function applyOperations(
         break;
       }
 
+      case 'IMAGE_REPLACE':
+      case 'OBJECT_RESIZE':
+        // Handled by applyImageOperations — ignore in text reducer.
+        break;
+
       case 'REVERT':
         // Already handled above during the revoked-ids pass.
         break;
@@ -200,4 +208,108 @@ export function applyOperations(
   }
 
   return result;
+}
+
+/**
+ * Pure reducer: apply ops[0..cursor) to the given ImageObject array and return
+ * PreviewImage[]. Handles OBJECT_MOVE, OBJECT_DELETE, IMAGE_REPLACE, OBJECT_RESIZE.
+ */
+export function applyImageOperations(
+  images: readonly ImageObject[],
+  ops: readonly EditOperation[],
+  cursor: number,
+): PreviewImage[] {
+  const active = ops.slice(0, cursor);
+
+  // Build cancelled set (same REVERT cascade logic as applyOperations).
+  const opById = new Map<string, EditOperation>(active.map((o) => [o.id, o]));
+  const cancelled = new Set<string>();
+
+  function cancelOp(id: string): void {
+    if (cancelled.has(id)) return;
+    cancelled.add(id);
+    const target = opById.get(id);
+    if (target?.type === 'REVERT') {
+      for (const tid of target.targetOpIds) {
+        cancelled.delete(tid);
+      }
+    }
+  }
+
+  for (const op of active) {
+    if (op.type === 'REVERT' && !cancelled.has(op.id)) {
+      for (const tid of op.targetOpIds) {
+        cancelOp(tid);
+      }
+    }
+  }
+
+  const previewMap = new Map<string, PreviewImage>(
+    images.map((img) => [
+      img.id,
+      {
+        ...img,
+        currentBox: img.bbox,
+        deleted: false,
+        blobKey: null,
+        fit: null,
+      },
+    ]),
+  );
+
+  for (const op of active) {
+    if (cancelled.has(op.id)) continue;
+
+    switch (op.type) {
+      case 'OBJECT_MOVE': {
+        const pi = previewMap.get((op as ObjectMoveOp).objectId);
+        if (pi) {
+          const o = op as ObjectMoveOp;
+          previewMap.set(o.objectId, {
+            ...pi,
+            currentBox: { ...pi.currentBox, x: o.to.x, y: o.to.y },
+          });
+        }
+        break;
+      }
+
+      case 'OBJECT_DELETE': {
+        const pi = previewMap.get(op.objectId);
+        if (pi) {
+          previewMap.set(op.objectId, { ...pi, deleted: true });
+        }
+        break;
+      }
+
+      case 'IMAGE_REPLACE': {
+        const pi = previewMap.get((op as ImageReplaceOp).objectId);
+        if (pi) {
+          const o = op as ImageReplaceOp;
+          previewMap.set(o.objectId, {
+            ...pi,
+            blobKey: o.blobKey,
+            fit: o.fit,
+          });
+        }
+        break;
+      }
+
+      case 'OBJECT_RESIZE': {
+        const pi = previewMap.get((op as ObjectResizeOp).objectId);
+        if (pi) {
+          const o = op as ObjectResizeOp;
+          previewMap.set(o.objectId, {
+            ...pi,
+            currentBox: o.to,
+          });
+        }
+        break;
+      }
+
+      default:
+        break;
+    }
+  }
+
+  return Array.from(previewMap.values());
 }

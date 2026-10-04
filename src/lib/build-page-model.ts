@@ -4,12 +4,13 @@ import type { PageGeometry } from './coordinates';
 import { findFontDictionary, fontFactsFromDictionary, readFontDictionary, unknownFontFacts } from './font-descriptor';
 import { identifyFont } from './font-resolver';
 import { fontSizeFromMatrix, horizontalScalingFromMatrix, lineHeight } from './font-style-extractor';
+import { extractImages, type ImageSourcePage } from './pdf-image-extractor';
 import { readPageText, type PdfJsFont, type TextSourcePage } from './pdf-text-extractor';
 import { lineId, mergeFragments, readingOrder, runBox, runHead } from './text-geometry';
 import type { FontFacts, PageModel, TextLine } from '../types/page-model';
 
 export interface BuildPageModelContext {
-  readonly page: TextSourcePage;
+  readonly page: TextSourcePage & ImageSourcePage;
   readonly pageIndex: number;
   readonly geometry: PageGeometry;
   /** The document's pdf-lib handle; created lazily by the registry. */
@@ -84,5 +85,6 @@ export async function buildPageModel(ctx: BuildPageModelContext): Promise<PageMo
       font: font.facts,
     });
   }
-  return { pageIndex: ctx.pageIndex, lines };
+  const images = await extractImages(ctx.page, ctx.pageIndex);
+  return { pageIndex: ctx.pageIndex, lines, images };
 }

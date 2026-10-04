@@ -186,3 +186,81 @@ describe('applyOperations', () => {
     expect(r1.at(0)?.currentText).toBe(r2.at(0)?.currentText);
   });
 });
+
+// ─── applyImageOperations tests ───────────────────────────────────────────────
+
+import { applyImageOperations } from '../../src/lib/operation-reducer';
+import type { ImageObject } from '../../src/types/page-model';
+import type { ImageReplaceOp, ObjectResizeOp } from '../../src/types/operations';
+
+function makeImage(id: string): ImageObject {
+  return {
+    id,
+    pageIndex: 0,
+    bbox: { x: 10, y: 20, width: 100, height: 80 },
+    locked: false,
+    maskColor: null,
+  };
+}
+
+function makeImageReplace(objectId: string, blobKey: string): ImageReplaceOp {
+  return { id: `op-${++_seq}`, ts: _seq, pageIndex: 0, type: 'IMAGE_REPLACE', objectId, blobKey, fit: 'contain' };
+}
+
+function makeObjectResize(objectId: string, to: { x: number; y: number; width: number; height: number }): ObjectResizeOp {
+  return {
+    id: `op-${++_seq}`, ts: _seq, pageIndex: 0, type: 'OBJECT_RESIZE',
+    objectId,
+    from: { x: 10, y: 20, width: 100, height: 80 },
+    to,
+  };
+}
+
+describe('applyImageOperations', () => {
+  const images: ImageObject[] = [makeImage('img:0:1'), makeImage('img:0:2')];
+
+  it('returns PreviewImages mirroring originals when no ops', () => {
+    const result = applyImageOperations(images, [], 0);
+    expect(result).toHaveLength(2);
+    expect(result.find((i) => i.id === 'img:0:1')?.blobKey).toBeNull();
+    expect(result.find((i) => i.id === 'img:0:1')?.deleted).toBe(false);
+    expect(result.find((i) => i.id === 'img:0:1')?.currentBox).toEqual({ x: 10, y: 20, width: 100, height: 80 });
+  });
+
+  it('IMAGE_REPLACE: apply → blobKey and fit are set', () => {
+    const op = makeImageReplace('img:0:1', 'blob-uuid-1');
+    const result = applyImageOperations(images, [op], 1);
+    const img = result.find((i) => i.id === 'img:0:1');
+    expect(img?.blobKey).toBe('blob-uuid-1');
+    expect(img?.fit).toBe('contain');
+  });
+
+  it('IMAGE_REPLACE: undo → blobKey returns to null', () => {
+    const op = makeImageReplace('img:0:1', 'blob-uuid-1');
+    const result = applyImageOperations(images, [op], 0);
+    const img = result.find((i) => i.id === 'img:0:1');
+    expect(img?.blobKey).toBeNull();
+  });
+
+  it('OBJECT_RESIZE: apply → currentBox updated', () => {
+    const newBox = { x: 10, y: 20, width: 150, height: 120 };
+    const op = makeObjectResize('img:0:1', newBox);
+    const result = applyImageOperations(images, [op], 1);
+    const img = result.find((i) => i.id === 'img:0:1');
+    expect(img?.currentBox).toEqual(newBox);
+  });
+
+  it('OBJECT_RESIZE: undo → currentBox returns to original bbox', () => {
+    const op = makeObjectResize('img:0:1', { x: 10, y: 20, width: 150, height: 120 });
+    const result = applyImageOperations(images, [op], 0);
+    const img = result.find((i) => i.id === 'img:0:1');
+    expect(img?.currentBox).toEqual({ x: 10, y: 20, width: 100, height: 80 });
+  });
+
+  it('OBJECT_DELETE: marks image deleted', () => {
+    const op: ObjectDeleteOp = { id: `op-${++_seq}`, ts: _seq, pageIndex: 0, type: 'OBJECT_DELETE', objectId: 'img:0:2' };
+    const result = applyImageOperations(images, [op], 1);
+    expect(result.find((i) => i.id === 'img:0:2')?.deleted).toBe(true);
+    expect(result.find((i) => i.id === 'img:0:1')?.deleted).toBe(false);
+  });
+});
