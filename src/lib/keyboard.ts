@@ -1,3 +1,26 @@
+export type NudgeDirection = 'up' | 'down' | 'left' | 'right';
+
+export interface NudgeAction {
+  readonly direction: NudgeDirection;
+  readonly large: boolean;
+}
+
+/**
+ * Returns a nudge action when an arrow key is pressed while an object is selected
+ * and no text input has focus. Returns null otherwise.
+ */
+export function nudgeKeyAction(e: KeyLike): NudgeAction | null {
+  if (e.altKey || e.ctrlKey || e.metaKey || isTextInput(e.target)) return null;
+  const large = e.shiftKey ?? false;
+  switch (e.key) {
+    case 'ArrowUp': return { direction: 'up', large };
+    case 'ArrowDown': return { direction: 'down', large };
+    case 'ArrowLeft': return { direction: 'left', large };
+    case 'ArrowRight': return { direction: 'right', large };
+    default: return null;
+  }
+}
+
 /** Viewer keyboard shortcuts (page-viewer spec). Pure so they can be unit-tested. */
 export type ViewerKeyAction =
   | 'nextPage'

@@ -1,6 +1,7 @@
 import type { TextLine } from '../types/page-model';
 import type {
   EditOperation,
+  ObjectMoveOp,
   PreviewLine,
   TextStyle,
 } from '../types/operations';
@@ -75,6 +76,7 @@ export function applyOperations(
         ...line,
         currentText: line.text,
         currentStyle: styleFromLine(line),
+        currentBox: line.box,
         deleted: false,
         patchLayout: null,
         resolvedFont: null,
@@ -113,6 +115,18 @@ export function applyOperations(
         break;
       }
 
+      case 'OBJECT_MOVE': {
+        const pl = previewMap.get((op as ObjectMoveOp).objectId);
+        if (pl) {
+          const o = op as ObjectMoveOp;
+          previewMap.set(o.objectId, {
+            ...pl,
+            currentBox: { ...pl.currentBox, x: o.to.x, y: o.to.y },
+          });
+        }
+        break;
+      }
+
       case 'OBJECT_DELETE': {
         const pl = previewMap.get(op.objectId);
         if (pl) {
@@ -131,6 +145,7 @@ export function applyOperations(
           text: op.text,
           origin: op.at,
           box: { x: op.at.x, y: op.at.y, width: 0, height: 0 },
+          currentBox: { x: op.at.x, y: op.at.y, width: 0, height: 0 },
           // matrix, fontRef, family, subsetPrefix, fontClass, bold, italic come from style
           matrix: [1, 0, 0, 1, op.at.x, op.at.y],
           fontRef: '',

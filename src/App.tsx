@@ -9,6 +9,7 @@ import { MaskLayer } from './components/MaskLayer';
 import { PatchLayer } from './components/PatchLayer';
 import { PDFUploader } from './components/PDFUploader';
 import { PDFViewer } from './components/PDFViewer';
+import { PropertiesPanel } from './components/PropertiesPanel';
 import { Sidebar } from './components/Sidebar';
 import { StyleControls } from './components/StyleControls';
 import { TextObjectsTab } from './components/TextObjectsTab';
@@ -18,7 +19,7 @@ import { createOperation } from './lib/create-operation';
 import { layoutText } from './lib/text-layout';
 import type { ObjectDeleteOp, PreviewLine, RevertOp, TextAddOp, TextReplaceOp, TextStyle, TextStyleChangeOp } from './types/operations';
 import { NOTICE_MESSAGES } from './lib/document-notice';
-import { viewerKeyAction } from './lib/keyboard';
+import { nudgeKeyAction, viewerKeyAction } from './lib/keyboard';
 import { LOAD_ERROR_MESSAGES } from './lib/load-errors';
 import type { SampleId } from './lib/sample-catalog';
 import { usePageModel, usePageSampling } from './store/usePageModel';
@@ -55,6 +56,7 @@ function PageOverlay({
   addTextPos,
   onCommitAddText,
   onCancelAddText,
+  onMove,
 }: {
   documentId: string;
   pageIndex: number;
@@ -67,6 +69,7 @@ function PageOverlay({
   addTextPos: { point: Point; geometry: PageGeometry } | null;
   onCommitAddText: (text: string, style: TextStyle) => void;
   onCancelAddText: () => void;
+  onMove?: (id: string, to: Point) => void;
 }) {
   const { status, model } = usePageModel(documentId, pageIndex);
   const selection = useEditor((s) => s.selection);
@@ -74,8 +77,13 @@ function PageOverlay({
   const rawLines = model ? previewLines(pageIndex) : [];
   const pageWidth = geometry.box[2] - geometry.box[0];
   const lines: PreviewLine[] = rawLines.map((line) => {
-    if (!line.deleted && line.patchLayout === null && line.currentText !== line.text) {
-      const { lines: pl } = layoutText(line.currentText, line.currentStyle, line.box, pageWidth);
+    if (line.deleted) return line;
+    const moved = line.currentBox.x !== line.box.x || line.currentBox.y !== line.box.y;
+    const textChanged = line.currentText !== line.text;
+    if (line.patchLayout === null && (textChanged || moved)) {
+      // For moved lines, anchor layout at currentBox; for text-only changes use currentBox too.
+      const layoutBox = moved ? line.currentBox : line.box;
+      const { lines: pl } = layoutText(line.currentText, line.currentStyle, layoutBox, pageWidth);
       return { ...line, patchLayout: pl };
     }
     return line;
@@ -102,6 +110,7 @@ function PageOverlay({
         text: '',
         origin: addTextPos.point,
         box: { x: addTextPos.point.x, y: addTextPos.point.y, width: 200, height: addTextStyle.size * 1.2 },
+        currentBox: { x: addTextPos.point.x, y: addTextPos.point.y, width: 200, height: addTextStyle.size * 1.2 },
         matrix: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number],
         fontRef: '',
         family: addTextStyle.fontFamilyOverride ?? 'Liberation Sans',
@@ -145,6 +154,7 @@ function PageOverlay({
           onSelect={selectObject}
           onStep={stepSelection}
           onDoubleClick={onStartEdit}
+          onMove={onMove}
         />
       )}
       {editingLine && (
@@ -188,6 +198,7 @@ export function App() {
   const viewerRef = useRef<HTMLDivElement>(null);
   const selection = useEditor((s) => s.selection);
   const [rendered, setRendered] = useState<{ documentId: string; pageIndex: number } | null>(null);
+  const [pageGeometry, setPageGeometry] = useState<PageGeometry | null>(null);
   const [restoreSession, setRestoreSession] = useState<SessionData | null>(null);
   const docIdForPage = document?.id;
   const activeModel = usePageModel(docIdForPage, view.pageIndex);
@@ -279,6 +290,15 @@ export function App() {
     const s = editorStore.getState();
     const sel = s.selection;
     if (!sel) return;
+    // Guard no-op (6.2)
+    const preview = s.previewLines(s.view.pageIndex);
+    const line = preview.find((l) => l.id === sel);
+    if (line) {
+      const hasChange = (Object.keys(patch) as (keyof typeof patch)[]).some(
+        (k) => line.currentStyle[k] !== patch[k],
+      );
+      if (!hasChange) return;
+    }
     s.pushOperation(
       createOperation<TextStyleChangeOp>({
         type: 'TEXT_STYLE_CHANGE',
@@ -288,6 +308,13 @@ export function App() {
       }),
     );
   }, []);
+
+  const handleMove = useCallback((id: string, to: Point) => {
+    const s = editorStore.getState();
+    const geo = pageGeometry;
+    if (!geo) return;
+    s.moveObject(id, to, geo);
+  }, [pageGeometry]);
 
   // Derive selected line's current style and resolved font for StyleControls
   const selectedLine = (() => {
@@ -395,6 +422,23 @@ export function App() {
             }),
           );
           s.selectObject(null);
+          return;
+        }
+      }
+      // Arrow keys nudge the selected object (MV-6).
+      if (!inTextField) {
+        const nudge = nudgeKeyAction({
+          key: e.key,
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          altKey: e.altKey,
+          shiftKey: e.shiftKey,
+          target: e.target,
+          inViewer: e.target instanceof Node && !!viewerRef.current?.contains(e.target),
+        });
+        if (nudge && editorStore.getState().selection && currentGeometryRef.current) {
+          e.preventDefault();
+          editorStore.getState().nudgeObject(nudge.direction, nudge.large, currentGeometryRef.current.geometry);
           return;
         }
       }
@@ -563,6 +607,7 @@ export function App() {
                   onPageRendered={(pageIndex) => setRendered({ documentId: document.id, pageIndex })}
                   renderOverlay={({ geometry, pageIndex, zoom }) => {
                     currentGeometryRef.current = { geometry, zoom };
+                    if (pageGeometry !== geometry) setPageGeometry(geometry);
                     return (
                       <PageOverlay
                         documentId={document.id}
@@ -579,11 +624,20 @@ export function App() {
                           setAddTextPos(null);
                           editorStore.getState().setAddTextMode(false);
                         }}
+                        onMove={handleMove}
                       />
                     );
                   }}
                 />
               </div>
+              {selection && selectedLine && pageGeometry && (
+                <PropertiesPanel
+                  line={selectedLine}
+                  geometry={pageGeometry}
+                  onMove={(to) => handleMove(selection, to)}
+                  onStyleChange={handleStyleChange}
+                />
+              )}
             </div>
           )}
         </PDFUploader>

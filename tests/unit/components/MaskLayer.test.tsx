@@ -41,6 +41,7 @@ function baseLine(id: string, text: string): TextLine {
 function preview(id: string, text: string, currentText: string, deleted = false): PreviewLine {
   return {
     ...baseLine(id, text),
+    currentBox: baseLine(id, text).box,
     currentText,
     currentStyle: { fontClass: 'sans', bold: false, italic: false, fontFamilyOverride: null, size: 12, color: '#000000', charSpacing: 0, wordSpacing: 0, lineHeight: 1.2, hScale: 100, rise: 0, renderMode: 0 },
     deleted,

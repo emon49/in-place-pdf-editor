@@ -6,15 +6,17 @@ import { PDFViewer, type RenderablePage } from '../../../src/components/PDFViewe
 import { TextOverlay } from '../../../src/components/TextOverlay';
 import { createPageGeometry } from '../../../src/lib/coordinates';
 import { LOCK_MESSAGES, MASK_WARNING } from '../../../src/lib/object-labels';
-import type { TextLine } from '../../../src/types/page-model';
+import type { PreviewLine } from '../../../src/types/operations';
 
 afterEach(cleanup);
 
 const upright = createPageGeometry([0, 0, 612, 792], 0);
 const rotated = createPageGeometry([0, 0, 612, 792], 90);
 
-function mk(id: string, text: string, box: TextLine['box'], extra: Partial<TextLine> = {}): TextLine {
-  return { id, text, box, lockReason: null, background: { status: 'pending' }, ...extra } as TextLine;
+const BASE_STYLE = { fontClass: 'sans' as const, bold: false, italic: false, fontFamilyOverride: null, size: 12, color: '#000000', charSpacing: 0, wordSpacing: 0, lineHeight: 1.2, hScale: 100, rise: 0, renderMode: 0 };
+
+function mk(id: string, text: string, box: PreviewLine['box'], extra: Partial<PreviewLine> = {}): PreviewLine {
+  return { id, text, box, currentBox: box, lockReason: null, background: { status: 'pending' }, currentText: text, currentStyle: BASE_STYLE, deleted: false, patchLayout: null, resolvedFont: null, ...extra } as PreviewLine;
 }
 const heading = mk('0:0', 'Quarterly report', { x: 72, y: 688, width: 142, height: 14 });
 const body = mk('0:1', 'Total amount due', { x: 72, y: 600, width: 100, height: 12 });
@@ -31,7 +33,7 @@ function Host({
   initial = null,
   onSelectSpy,
 }: {
-  lines: TextLine[];
+  lines: PreviewLine[];
   geometry?: typeof upright;
   zoom?: number;
   initial?: string | null;
@@ -226,7 +228,7 @@ describe('inside the viewer: background clicks and re-rendering (7.2, 6.3)', () 
 
   const getPage = async () => page; // stable identity, as the app's memoised getPage
 
-  function ViewerHost({ lines }: { lines: TextLine[] }) {
+  function ViewerHost({ lines }: { lines: PreviewLine[] }) {
     const [selected, setSelected] = useState<string | null>(null);
     const [current, setCurrent] = useState(lines);
     return (

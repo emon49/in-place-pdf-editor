@@ -16,9 +16,10 @@ interface MaskLayerProps {
 export function MaskLayer({ lines, geometry, zoom }: MaskLayerProps) {
   const masked = lines.filter((l) => {
     // Mask applies to lines that existed in the original document and have been
-    // either modified (currentText differs from text) or deleted.
+    // modified (currentText differs from text), moved, or deleted.
     const isOriginal = !l.id.startsWith('add-');
-    return isOriginal && (l.deleted || l.currentText !== l.text);
+    const moved = l.currentBox.x !== l.box.x || l.currentBox.y !== l.box.y;
+    return isOriginal && (l.deleted || l.currentText !== l.text || moved);
   });
 
   if (masked.length === 0) return null;

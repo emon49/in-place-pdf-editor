@@ -9,7 +9,16 @@ import { pickSingleFile, type FileLike } from '../lib/pdf-sniff';
 import type { Result } from '../lib/result';
 import { clampZoom, nextPreset, prevPreset } from '../lib/zoom';
 import { applyOperations } from '../lib/operation-reducer';
-import type { EditOperation, PreviewLine } from '../types/operations';
+import {
+  clampToSafeArea,
+  displayRectToPage,
+  displaySize,
+  pageRectToDisplay,
+  type PageGeometry,
+  type Point,
+} from '../lib/coordinates';
+import { createOperation } from '../lib/create-operation';
+import type { EditOperation, ObjectMoveOp, PreviewLine } from '../types/operations';
 
 export type FitMode = 'width' | 'page';
 
@@ -52,6 +61,8 @@ export interface EditorState {
   readonly cursor: number;
   /** True when add-text tool is active. */
   readonly addTextMode: boolean;
+  /** Transient nudge preview: objectId → pending destination in Page Space (not persisted). */
+  readonly nudgePreview: Readonly<Record<string, Point>> | null;
 }
 
 export interface EditorActions {
@@ -87,6 +98,10 @@ export interface EditorActions {
   previewLines(pageIndex: number): PreviewLine[];
   /** Toggles add-text mode. */
   setAddTextMode(active: boolean): void;
+  /** Moves an object to the given page-space position, clamped to the Safe Area. */
+  moveObject(objectId: string, to: Point, geometry: PageGeometry): void;
+  /** Nudges the selected object in the given direction, debouncing a burst into one OBJECT_MOVE. */
+  nudgeObject(direction: 'up' | 'down' | 'left' | 'right', large: boolean, geometry: PageGeometry): void;
 }
 
 export type EditorStore = StoreApi<EditorState & EditorActions>;
@@ -102,6 +117,15 @@ export interface EditorDeps {
 }
 
 export const INITIAL_VIEW: ViewState = { pageIndex: 0, zoom: 1, fitMode: 'width' };
+
+// Nudge burst state (non-reactive, shared across store instances for simplicity).
+let nudgeTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingNudge: {
+  objectId: string;
+  from: Point;
+  currentTo: Point;
+  pageIndex: number;
+} | null = null;
 
 export function createEditorStore(deps: EditorDeps): EditorStore {
   // Only the most recent open request may change state; earlier ones are discarded when they settle.
@@ -123,6 +147,7 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
       ops: [],
       cursor: 0,
       addTextMode: false,
+      nudgePreview: null,
 
       async openFiles(files) {
         const picked = pickSingleFile(files);
@@ -165,6 +190,7 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
           ops: [],
           cursor: 0,
           addTextMode: false,
+          nudgePreview: null,
         }));
         if (previous) {
           cache.clear(previous.id);
@@ -245,14 +271,106 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
         set((s) => (s.cursor < s.ops.length ? { cursor: s.cursor + 1 } : s));
       },
       previewLines(pageIndex) {
-        const { document, ops, cursor } = get();
+        const { document, ops, cursor, nudgePreview } = get();
         if (!document) return [];
         const model = cache.get(document.id, pageIndex);
         if (!model) return [];
-        return applyOperations(model.lines, ops, cursor);
+        const base = applyOperations(model.lines, ops, cursor);
+        if (!nudgePreview) return base;
+        return base.map((line) => {
+          const to = nudgePreview[line.id];
+          if (!to) return line;
+          return { ...line, currentBox: { ...line.currentBox, x: to.x, y: to.y } };
+        });
       },
       setAddTextMode(active) {
         set({ addTextMode: active });
+      },
+
+      moveObject(objectId, to, geometry) {
+        const { view } = get();
+        const lines = get().previewLines(view.pageIndex);
+        const line = lines.find((l) => l.id === objectId);
+        if (!line) return;
+        const from: Point = { x: line.currentBox.x, y: line.currentBox.y };
+        // Build a display rect at the desired position and clamp it.
+        const origDisplay = pageRectToDisplay(geometry, line.currentBox);
+        const desiredDisplay = pageRectToDisplay(geometry, { ...line.currentBox, x: to.x, y: to.y });
+        const clamped = clampToSafeArea(
+          { x: desiredDisplay.x, y: desiredDisplay.y, width: origDisplay.width, height: origDisplay.height },
+          displaySize(geometry),
+        );
+        const clampedPage = displayRectToPage(geometry, clamped);
+        const clampedTo: Point = { x: clampedPage.x, y: clampedPage.y };
+        if (clampedTo.x === from.x && clampedTo.y === from.y) return;
+        get().pushOperation(
+          createOperation<ObjectMoveOp>({
+            type: 'OBJECT_MOVE',
+            objectId,
+            from,
+            to: clampedTo,
+            pageIndex: view.pageIndex,
+          }),
+        );
+      },
+
+      nudgeObject(direction, large, geometry) {
+        const { selection, view } = get();
+        if (!selection) return;
+        const lines = get().previewLines(view.pageIndex);
+        const line = lines.find((l) => l.id === selection);
+        if (!line) return;
+
+        const step = large ? 10 : 1;
+
+        // Use pendingNudge.currentTo if burst ongoing, else current position.
+        let currentPos: Point;
+        if (pendingNudge && pendingNudge.objectId === selection) {
+          currentPos = pendingNudge.currentTo;
+        } else {
+          currentPos = { x: line.currentBox.x, y: line.currentBox.y };
+          if (nudgeTimer !== null) clearTimeout(nudgeTimer);
+          pendingNudge = {
+            objectId: selection,
+            from: currentPos,
+            currentTo: currentPos,
+            pageIndex: view.pageIndex,
+          };
+        }
+        if (nudgeTimer !== null) clearTimeout(nudgeTimer);
+
+        // Nudge in display space then convert back.
+        const displayRect = pageRectToDisplay(geometry, { ...line.currentBox, x: currentPos.x, y: currentPos.y });
+        const nudgedDisplay = { ...displayRect };
+        if (direction === 'up') nudgedDisplay.y -= step;
+        else if (direction === 'down') nudgedDisplay.y += step;
+        else if (direction === 'left') nudgedDisplay.x -= step;
+        else nudgedDisplay.x += step;
+        const clamped = clampToSafeArea(nudgedDisplay, displaySize(geometry));
+        const pageRect = displayRectToPage(geometry, clamped);
+        pendingNudge.currentTo = { x: pageRect.x, y: pageRect.y };
+
+        // Visual preview (no op log change yet).
+        set({ nudgePreview: { [selection]: pendingNudge.currentTo } });
+
+        nudgeTimer = setTimeout(() => {
+          if (!pendingNudge || pendingNudge.objectId !== selection) return;
+          const { from, currentTo, pageIndex } = pendingNudge;
+          pendingNudge = null;
+          nudgeTimer = null;
+          set({ nudgePreview: null });
+          if (currentTo.x !== from.x || currentTo.y !== from.y) {
+            get().pushOperation(
+              createOperation<ObjectMoveOp>({
+                type: 'OBJECT_MOVE',
+                objectId: selection,
+                from,
+                to: currentTo,
+                pageIndex,
+              }),
+            );
+          }
+        }, 80);
       },
 
       selectObject: (id) => set({ selection: id }),

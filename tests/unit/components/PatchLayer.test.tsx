@@ -56,6 +56,7 @@ function baseLine(id: string, text: string): TextLine {
 function preview(id: string, text: string, patchLayout: LayoutLine[] | null, deleted = false): PreviewLine {
   return {
     ...baseLine(id, text),
+    currentBox: baseLine(id, text).box,
     currentText: text,
     currentStyle: BASE_STYLE,
     deleted,

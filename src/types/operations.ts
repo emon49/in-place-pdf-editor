@@ -1,4 +1,4 @@
-import type { Point } from '../lib/coordinates';
+import type { Point, Rect } from '../lib/coordinates';
 import type { FontClass, TextLine } from './page-model';
 
 /** Hex color string, e.g. `#cc1a1a`. */
@@ -100,6 +100,15 @@ export interface TextAddOp extends OpBase {
   readonly style: TextStyle;
 }
 
+export interface ObjectMoveOp extends OpBase {
+  readonly type: 'OBJECT_MOVE';
+  readonly objectId: string;
+  /** Box origin before the move, in Page Space. */
+  readonly from: Point;
+  /** Box origin after the move, in Page Space. */
+  readonly to: Point;
+}
+
 export interface ObjectDeleteOp extends OpBase {
   readonly type: 'OBJECT_DELETE';
   readonly objectId: string;
@@ -115,6 +124,7 @@ export type EditOperation =
   | TextReplaceOp
   | TextStyleChangeOp
   | TextAddOp
+  | ObjectMoveOp
   | ObjectDeleteOp
   | RevertOp;
 
@@ -140,6 +150,8 @@ export interface PreviewLine extends TextLine {
   readonly currentText: string;
   /** Style after applying style-change operations. */
   readonly currentStyle: TextStyle;
+  /** Effective bounding box after moves; equals `box` when not moved. */
+  readonly currentBox: Rect;
   /** True when an OBJECT_DELETE is active on this line. */
   readonly deleted: boolean;
   /** Wrapped layout lines for rendering patches; null if no edit or deleted. */

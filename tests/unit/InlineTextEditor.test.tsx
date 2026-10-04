@@ -44,6 +44,7 @@ function makeLine(overrides: Partial<PreviewLine> = {}): PreviewLine {
       encoding: null,
       coverage: null,
     },
+    currentBox: { x: 50, y: 700, width: 200, height: 14 },
     currentText: 'Hello',
     currentStyle: {
       fontClass: 'sans',
