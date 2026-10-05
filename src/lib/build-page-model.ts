@@ -79,7 +79,7 @@ export async function buildPageModel(ctx: BuildPageModelContext): Promise<PageMo
       wordSpacing: head.style.wordSpacing,
       rise: head.style.rise,
       renderMode: head.style.renderMode,
-      lineHeight: lineHeight(fontSize, head.ascent, head.descent),
+      lineHeight: lineHeight(head.ascent, head.descent),
       color: head.colorResolved ? { hex: head.style.colorKey, source: 'exact' } : { hex: '#000000', source: 'pending' },
       background: { status: 'pending' },
       lockReason: run.lockReason,

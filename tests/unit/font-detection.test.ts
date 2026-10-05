@@ -16,8 +16,8 @@ describe('font metrics (4.1)', () => {
   it('uses the full vertical scale for a skewed matrix', () => {
     expect(fontSizeFromMatrix([12, 0, 3, 4, 0, 0])).toBe(5);
   });
-  it('derives line height from ascent and descent', () => {
-    expect(lineHeight(10, 0.9, -0.2)).toBeCloseTo(11);
+  it('derives line height ratio from ascent and descent', () => {
+    expect(lineHeight(0.9, -0.2)).toBeCloseTo(1.1);
   });
 });
 

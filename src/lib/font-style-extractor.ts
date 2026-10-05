@@ -11,7 +11,7 @@ export function horizontalScalingFromMatrix([a, b, c, d]: Matrix): number {
   return vertical === 0 ? 100 : (Math.hypot(a, b) / vertical) * 100;
 }
 
-/** Line height in points from the font's ascent and descent (em fractions; descent is negative). */
-export function lineHeight(fontSize: number, ascent: number, descent: number): number {
-  return fontSize * (ascent - descent);
+/** Line height ratio from the font's ascent and descent (em fractions; descent is negative). */
+export function lineHeight(ascent: number, descent: number): number {
+  return ascent - descent;
 }
