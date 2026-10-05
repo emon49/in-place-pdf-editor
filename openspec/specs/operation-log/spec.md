@@ -62,7 +62,7 @@ The system SHALL support a REVERT operation that targets one or more earlier ope
 - **THEN** a REVERT targeting all effective operations on that object is appended, and the line returns to its original text and position
 
 ### Requirement: Supported operation types
-The Operation Log SHALL accept operations of types: TEXT_REPLACE, TEXT_STYLE_CHANGE, TEXT_ADD, OBJECT_MOVE, OBJECT_DELETE, and REVERT. Each type SHALL carry the payload defined in the data model (§8 of the PRD).
+The Operation Log SHALL accept operations of types: TEXT_REPLACE, TEXT_STYLE_CHANGE, TEXT_ADD, OBJECT_MOVE, OBJECT_RESIZE, OBJECT_DELETE, IMAGE_REPLACE, and REVERT. Each type SHALL carry the payload defined in the data model (§8 of the PRD).
 
 #### Scenario: TEXT_REPLACE payload
 - **WHEN** a TEXT_REPLACE is created
@@ -79,3 +79,11 @@ The Operation Log SHALL accept operations of types: TEXT_REPLACE, TEXT_STYLE_CHA
 #### Scenario: OBJECT_MOVE payload
 - **WHEN** an OBJECT_MOVE is created
 - **THEN** it contains the objectId, the original position (from) in Page Space, and the new position (to) in Page Space
+
+#### Scenario: OBJECT_RESIZE payload
+- **WHEN** an OBJECT_RESIZE is created
+- **THEN** it contains the objectId, the original bounding box (from) in Page Space, and the new bounding box (to) in Page Space
+
+#### Scenario: IMAGE_REPLACE payload
+- **WHEN** an IMAGE_REPLACE is created
+- **THEN** it contains the objectId, a blobKey referencing the stored image, and the fit mode (contain, cover, or fill)
