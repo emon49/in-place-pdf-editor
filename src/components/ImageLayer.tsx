@@ -119,6 +119,7 @@ export function ImageLayer({ images, geometry, zoom, selectedId, onSelect, onMov
   const [drag, setDrag] = useState<DragState | null>(null);
   const [dragDeltaPx, setDragDeltaPx] = useState({ x: 0, y: 0 });
   const didDragRef = useRef(false);
+  const pointerActiveRef = useRef(false);
 
   const activeDrag = drag !== null && drag.imgId === selectedId ? drag : null;
 
@@ -255,8 +256,11 @@ export function ImageLayer({ images, geometry, zoom, selectedId, onSelect, onMov
                 if (didDragRef.current) { didDragRef.current = false; return; }
                 onSelect(img.id);
               }}
-              onFocus={() => { if (!isSelected) onSelect(img.id); }}
-              onPointerDown={(e) => handleBodyPointerDown(img, e)}
+              onFocus={() => {
+                if (!isSelected && !pointerActiveRef.current) onSelect(img.id);
+                pointerActiveRef.current = false;
+              }}
+              onPointerDown={(e) => { pointerActiveRef.current = true; handleBodyPointerDown(img, e); }}
               onPointerMove={(e) => handlePointerMove(e)}
               onPointerUp={(e) => handlePointerUp(img, e)}
               onPointerCancel={(e) => handlePointerCancel(img, e)}

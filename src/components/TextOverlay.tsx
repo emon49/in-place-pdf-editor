@@ -53,6 +53,9 @@ export function TextOverlay({ lines, geometry, zoom, selectedId, onSelect, onSte
   const [dragDeltaPx, setDragDeltaPx] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   // Blocks the next onClick after a real drag commits.
   const didDragRef = useRef(false);
+  // Set on pointerdown so onFocus skips selection when focus came from a pointer;
+  // avoids a layout shift (PropertiesPanel adding/removing) before the click fires.
+  const pointerActiveRef = useRef(false);
 
   // Drag is only active when the dragged line is still selected. If selection
   // changes externally the drag becomes a no-op visually; the pointer-up
@@ -186,9 +189,12 @@ export function TextOverlay({ lines, geometry, zoom, selectedId, onSelect, onSte
               if (!locked && onDoubleClick) onDoubleClick(line.id);
             }}
             onFocus={() => {
-              if (!isSelected) onSelect(line.id);
+              // Only select on keyboard-initiated focus; pointer clicks select via onClick
+              // to prevent a layout shift (PropertiesPanel mount) from stealing the click.
+              if (!isSelected && !pointerActiveRef.current) onSelect(line.id);
+              pointerActiveRef.current = false;
             }}
-            onPointerDown={(e) => handlePointerDown(line, e)}
+            onPointerDown={(e) => { pointerActiveRef.current = true; handlePointerDown(line, e); }}
             onPointerMove={(e) => handlePointerMove(line, e)}
             onPointerUp={(e) => handlePointerUp(line, e)}
             onPointerCancel={(e) => handlePointerCancel(line, e)}
