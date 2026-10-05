@@ -110,6 +110,8 @@ export interface PageModel {
   readonly lines: readonly TextLine[];
   /** Detected image objects on this page. */
   readonly images: readonly ImageObject[];
+  /** Deduplicated fill colors extracted from text lines (TY-10). Populated by buildPageModel. */
+  readonly palette: readonly string[];
 }
 
 export type PageModelStatus = 'idle' | 'extracting' | 'ready' | 'failed';

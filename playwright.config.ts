@@ -11,7 +11,12 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     trace: 'retain-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // smoke suite: cross-browser coverage for the core workflow (task 7.1).
+    { name: 'smoke-firefox', testMatch: '**/smoke.spec.ts', use: { ...devices['Desktop Firefox'] } },
+    { name: 'smoke-webkit', testMatch: '**/smoke.spec.ts', use: { ...devices['Desktop Safari'] } },
+  ],
   // E2E always runs against the production build so the real CSP and service worker are exercised.
   webServer: {
     command: 'npm run build && npm run preview',

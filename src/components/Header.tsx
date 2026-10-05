@@ -1,4 +1,4 @@
-import { Download, FileText, FolderOpen, Type } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, FileText, FolderOpen, Keyboard, Type, X } from 'lucide-react';
 import { useRef } from 'react';
 import { SAMPLE_CATALOG, type SampleId } from '../lib/sample-catalog';
 import type { FitMode } from '../store/editorStore';
@@ -22,12 +22,24 @@ export interface HeaderProps {
   onToggleAddText: () => void;
   editCount: number;
   onExport?: () => void;
+  onOpenShortcuts?: () => void;
+  /** Current search query. */
+  searchQuery?: string;
+  /** Total match count across all pages. */
+  searchMatchCount?: number;
+  /** 1-based index of the current match (0 when no matches). */
+  searchMatchNumber?: number;
+  onSearchChange?: (query: string) => void;
+  onSearchNext?: () => void;
+  onSearchPrev?: () => void;
 }
 
 /** Top toolbar (PRD §7.1, M0 subset). */
 export function Header(props: HeaderProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const hasDocument = props.documentName !== null;
+  const matchCount = props.searchMatchCount ?? 0;
+  const matchNumber = props.searchMatchNumber ?? 0;
 
   return (
     <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2">
@@ -90,7 +102,69 @@ export function Header(props: HeaderProps) {
               {props.editCount} {props.editCount === 1 ? 'edit' : 'edits'} applied
             </span>
           )}
+          {props.onSearchChange !== undefined && (
+            <div className="flex items-center gap-1" data-testid="search-bar">
+              <label className="sr-only" htmlFor="header-search">Search</label>
+              <input
+                id="header-search"
+                type="search"
+                data-testid="search-input"
+                placeholder="Search…"
+                value={props.searchQuery ?? ''}
+                onChange={(e) => props.onSearchChange?.(e.target.value)}
+                className="w-44 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus-visible:outline-2 focus-visible:outline-blue-600"
+                aria-label="Search document"
+              />
+              {(props.searchQuery ?? '').length > 0 && (
+                <>
+                  <span className="min-w-[4rem] text-center text-xs text-slate-500" aria-live="polite" data-testid="search-count">
+                    {matchCount === 0 ? 'No matches' : `${matchNumber} / ${matchCount}`}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Previous match"
+                    data-testid="search-prev"
+                    onClick={props.onSearchPrev}
+                    disabled={matchCount === 0}
+                    className="rounded p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-blue-600"
+                  >
+                    <ChevronUp aria-hidden="true" className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next match"
+                    data-testid="search-next"
+                    onClick={props.onSearchNext}
+                    disabled={matchCount === 0}
+                    className="rounded p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-blue-600"
+                  >
+                    <ChevronDown aria-hidden="true" className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    data-testid="search-clear"
+                    onClick={() => props.onSearchChange?.('')}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-blue-600"
+                  >
+                    <X aria-hidden="true" className="size-4" />
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           <div className="ml-auto flex flex-wrap items-center gap-3">
+            {props.onOpenShortcuts && (
+              <button
+                type="button"
+                aria-label="Keyboard shortcuts"
+                data-testid="shortcuts-button"
+                onClick={props.onOpenShortcuts}
+                className="rounded-md border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              >
+                <Keyboard aria-hidden="true" className="size-4" />
+              </button>
+            )}
             {props.onExport && (
               <button
                 type="button"

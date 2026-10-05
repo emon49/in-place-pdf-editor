@@ -1,8 +1,54 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPageGeometry, displaySize, type Box, type PageGeometry, type Size } from '../lib/coordinates';
 import { planCanvas } from '../lib/render-scale';
 import { fitPage, fitWidth } from '../lib/zoom';
 import type { FitMode } from '../store/editorStore';
+
+/** Returns true when the browser supports the Worker+OffscreenCanvas render path. */
+function supportsWorkerRender(): boolean {
+  return (
+    typeof Worker !== 'undefined' &&
+    typeof createImageBitmap !== 'undefined' &&
+    typeof OffscreenCanvas !== 'undefined' &&
+    typeof HTMLCanvasElement !== 'undefined' &&
+    typeof HTMLCanvasElement.prototype.transferControlToOffscreen === 'function'
+  );
+}
+
+/** Manages a render-worker.ts Web Worker that draws ImageBitmaps to an OffscreenCanvas. */
+interface WorkerBridge {
+  draw(bitmap: ImageBitmap, width: number, height: number): Promise<void>;
+  terminate(): void;
+}
+
+function createWorkerBridge(canvas: HTMLCanvasElement): WorkerBridge | null {
+  if (!supportsWorkerRender()) return null;
+  try {
+    const worker = new Worker(new URL('../lib/render-worker.ts', import.meta.url), { type: 'module' });
+    const offscreen = canvas.transferControlToOffscreen();
+    worker.postMessage({ type: 'init', canvas: offscreen }, [offscreen]);
+    const pending = new Map<number, () => void>();
+    let idCtr = 0;
+    worker.onmessage = (e: MessageEvent<{ type: 'done'; id: number }>) => {
+      pending.get(e.data.id)?.();
+      pending.delete(e.data.id);
+    };
+    return {
+      draw(bitmap, width, height) {
+        return new Promise<void>((resolve) => {
+          const id = idCtr++;
+          pending.set(id, resolve);
+          worker.postMessage({ type: 'draw', id, bitmap, width, height }, [bitmap]);
+        });
+      },
+      terminate() {
+        worker.terminate();
+      },
+    };
+  } catch {
+    return null;
+  }
+}
 
 /** The subset of PDF.js `PDFPageProxy` the viewer uses (keeps the component testable). */
 export interface RenderablePage {
@@ -75,9 +121,26 @@ const isCancellation = (e: unknown) =>
 export function PDFViewer({ getPage, pageIndex, pageCount, zoom, fitMode, onFitZoom, children, renderOverlay, onBackgroundClick, onPageRendered }: PDFViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasHostRef = useRef<HTMLDivElement>(null);
+  const workerCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const workerBridgeRef = useRef<WorkerBridge | null>(null);
+  const workerSupported = supportsWorkerRender();
   const [loaded, setLoaded] = useState<LoadedPage | null>(null);
   const [renderedIndex, setRenderedIndex] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
+
+  // Initialise the Worker bridge when the worker canvas mounts (once per component lifetime).
+  const initWorkerCanvas = useCallback((el: HTMLCanvasElement | null) => {
+    workerCanvasRef.current = el;
+    if (!el || workerBridgeRef.current) return;
+    workerBridgeRef.current = createWorkerBridge(el);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      workerBridgeRef.current?.terminate();
+      workerBridgeRef.current = null;
+    };
+  }, []);
   const dpr = useDevicePixelRatio();
   const viewerSize = useElementSize(scrollRef);
   // Kept in a ref so a new callback identity never restarts the page render effect.
@@ -121,17 +184,51 @@ export function PDFViewer({ getPage, pageIndex, pageCount, zoom, fitMode, onFitZ
   }, [fitMode, display?.width, display?.height, viewerSize, onFitZoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Render into an offscreen canvas and swap it in when complete; cancel stale renders.
+  // When the Worker bridge is available, the final draw is handed off to render-worker.ts
+  // (runs off the main thread) so the UI stays interactive during compositing.
   useEffect(() => {
     if (!loaded) return;
     const plan = planCanvas(displaySize(loaded.geometry), zoom, dpr);
+    const viewport = loaded.page.getViewport({ scale: zoom * plan.renderScale });
+    const bridge = workerBridgeRef.current;
+    let active = true;
+
+    if (bridge) {
+      // Worker path: render to temp canvas → createImageBitmap → Worker draws to OffscreenCanvas.
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = plan.canvas.width;
+      tempCanvas.height = plan.canvas.height;
+      const task = loaded.page.render({ canvas: tempCanvas, viewport: viewport as never });
+      task.promise
+        .then(() => {
+          if (!active) return;
+          return createImageBitmap(tempCanvas).then((bitmap) => {
+            if (!active) { bitmap.close(); return; }
+            return bridge.draw(bitmap, plan.canvas.width, plan.canvas.height);
+          });
+        })
+        .then(() => {
+          if (!active) return;
+          setRenderedIndex(loaded.index);
+          setFailed(false);
+          onRenderedRef.current?.(loaded.index);
+        })
+        .catch((e: unknown) => {
+          if (active && !isCancellation(e)) setFailed(true);
+        });
+      return () => {
+        active = false;
+        task.cancel();
+      };
+    }
+
+    // Fallback: render to a temp canvas and swap it into the DOM.
     const canvas = document.createElement('canvas');
     canvas.width = plan.canvas.width;
     canvas.height = plan.canvas.height;
     canvas.className = 'block size-full';
     canvas.setAttribute('aria-hidden', 'true');
-    const viewport = loaded.page.getViewport({ scale: zoom * plan.renderScale });
     const task = loaded.page.render({ canvas, viewport: viewport as never });
-    let active = true;
     task.promise.then(
       () => {
         if (!active) return;
@@ -172,6 +269,16 @@ export function PDFViewer({ getPage, pageIndex, pageCount, zoom, fitMode, onFitZ
           className="relative mx-auto bg-white shadow-md"
           style={{ width: css.width, height: css.height }}
         >
+          {/* Worker-controlled OffscreenCanvas; only rendered when the browser supports it. */}
+          {workerSupported && (
+            <canvas
+              ref={initWorkerCanvas}
+              className="absolute inset-0 block size-full"
+              aria-hidden="true"
+              data-testid="worker-canvas"
+            />
+          )}
+          {/* Fallback host: used when OffscreenCanvas/Worker is unavailable. */}
           <div ref={canvasHostRef} className="absolute inset-0" />
           {children}
           {loaded && renderOverlay?.({ geometry: loaded.geometry, pageIndex: loaded.index, zoom })}

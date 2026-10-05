@@ -1,3 +1,4 @@
+import type { TextLine } from '../types/page-model';
 import type { Rect } from './coordinates';
 
 /**
@@ -122,4 +123,36 @@ export function sampleGlyphColor(raster: Raster, rect: Rect): string | null {
   const core = ink.slice(0, Math.max(1, Math.ceil(ink.length * 0.1)));
   const mean = (pick: (p: (typeof core)[number]) => number) => core.reduce((s, p) => s + pick(p), 0) / core.length;
   return hex(mean((p) => p.r), mean((p) => p.g), mean((p) => p.b));
+}
+
+/** CSS hex colour string, e.g. `#ff0000`. */
+export type CssHex = string;
+
+/** Round an 0–255 channel value to the nearest multiple of 5. */
+const PALETTE_ROUND = 5;
+function roundChannel(v: number): number {
+  return Math.round(v / PALETTE_ROUND) * PALETTE_ROUND;
+}
+
+/**
+ * Extract the set of unique fill colors from the given Text Lines, deduplicating by rounding each
+ * RGB channel to the nearest 5. Returns at most 16 colors (TY-10).
+ */
+export function extractPalette(lines: TextLine[]): CssHex[] {
+  const seen = new Set<string>();
+  const result: CssHex[] = [];
+  for (const line of lines) {
+    if (line.color.source === 'pending') continue;
+    const h = line.color.hex.replace('#', '').toLowerCase().padStart(6, '0');
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    const key = `${roundChannel(r)},${roundChannel(g)},${roundChannel(b)}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(line.color.hex);
+      if (result.length >= 16) break;
+    }
+  }
+  return result;
 }

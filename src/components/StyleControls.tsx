@@ -4,12 +4,14 @@ import type { TextStyle } from '../types/operations';
 export interface StyleControlsProps {
   style: TextStyle;
   onChange: (patch: Partial<TextStyle>) => void;
+  /** Document palette swatches for quick color selection (TY-10). */
+  palette?: readonly string[];
 }
 
 const FONT_FAMILIES = CATALOG_ENTRIES.map((e) => e.family);
 
 /** Minimal style controls: font family, size, bold/italic, color. */
-export function StyleControls({ style, onChange }: StyleControlsProps) {
+export function StyleControls({ style, onChange, palette }: StyleControlsProps) {
   return (
     <div className="flex items-center gap-2" data-testid="style-controls">
       <label className="sr-only" htmlFor="style-font-family">Font family</label>
@@ -86,6 +88,21 @@ export function StyleControls({ style, onChange }: StyleControlsProps) {
         className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0.5"
         aria-label="Text color"
       />
+      {palette && palette.length > 0 && (
+        <div className="flex items-center gap-0.5" data-testid="palette-swatches" aria-label="Document palette">
+          {palette.map((color) => (
+            <button
+              key={color}
+              type="button"
+              aria-label={`Set color to ${color}`}
+              data-testid={`palette-swatch-${color}`}
+              onClick={() => onChange({ color })}
+              className="size-5 rounded border border-slate-300 focus-visible:outline-2 focus-visible:outline-blue-600"
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

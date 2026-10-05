@@ -39,9 +39,9 @@ const lines = [line(0, 'Quarterly report', 700), line(1, 'Total amount due', 600
 function openFakeDocument(opts: { page0?: PageModel | 'failed' | 'extracting' } = {}) {
   const pdf = { numPages: 2, getPage: async () => fakePage, loadingTask: { destroy: async () => undefined } } as unknown as PDFDocumentProxy;
   const id = documentRegistry.register({ pdf, originalBytes: new Uint8Array(1) });
-  const first = opts.page0 ?? { pageIndex: 0, lines, images: [] };
+  const first = opts.page0 ?? { pageIndex: 0, lines, images: [], palette: [] };
   if (typeof first === 'object') pageModelCache.set(id, 0, first);
-  pageModelCache.set(id, 1, { pageIndex: 1, lines: [], images: [] });
+  pageModelCache.set(id, 1, { pageIndex: 1, lines: [], images: [], palette: [] });
   const status = typeof first === 'object' ? 'ready' : first;
   editorStore.setState({
     document: { id, name: 'a.pdf', byteLength: 1, pageCount: 2 },
@@ -74,7 +74,7 @@ describe('sidebar and overlay in the app', () => {
   it('shows the Text Objects tab alone beside an open document, listing the page in reading order (8.1, 8.2)', async () => {
     openFakeDocument();
     render(<App />);
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Text Objects', 'History']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Text Objects', 'Pages', 'History']);
     const rows = await screen.findAllByTestId('text-row');
     expect(rows.map((r) => r.dataset.lineId)).toEqual(['0:0', '0:1', '0:2']);
     expect((await screen.findAllByTestId('text-box'))).toHaveLength(3);

@@ -70,7 +70,7 @@ describe('scheduleSampling (6.3)', () => {
 
   function setup() {
     const cache = createPageModelCache();
-    const model: PageModel = { pageIndex: 0, lines: [header, body], images: [] };
+    const model: PageModel = { pageIndex: 0, lines: [header, body], images: [], palette: [] };
     cache.set('d', 0, model);
     const onUpdated = vi.fn();
     const getRaster = vi.fn(async () => raster());
@@ -108,7 +108,7 @@ describe('scheduleSampling (6.3)', () => {
 
   it('swallows a failed sampling render', async () => {
     const cache = createPageModelCache();
-    cache.set('d', 0, { pageIndex: 0, lines: [header], images: [] });
+    cache.set('d', 0, { pageIndex: 0, lines: [header], images: [], palette: [] });
     const onUpdated = vi.fn();
     const scheduler = manualIdle();
     scheduleSampling({ documentId: 'd', pageIndex: 0, geometry, cache, getRaster: async () => Promise.reject(new Error('x')), onUpdated, idle: scheduler.idle });

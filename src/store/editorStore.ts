@@ -65,6 +65,12 @@ export interface EditorState {
   readonly addTextMode: boolean;
   /** Transient nudge preview: objectId → pending destination in Page Space (not persisted). */
   readonly nudgePreview: Readonly<Record<string, Point>> | null;
+  /** Current search query. Empty string = no active search. */
+  readonly searchQuery: string;
+  /** Ordered list of all matches across all pages (VW-4). */
+  readonly searchMatches: ReadonlyArray<{ pageIndex: number; lineId: string }>;
+  /** Index into searchMatches of the currently focused match. */
+  readonly searchMatchIndex: number;
 }
 
 export interface EditorActions {
@@ -112,6 +118,12 @@ export interface EditorActions {
   resizeImage(objectId: string, to: Rect): void;
   /** Delete the selected object (text or image) and append OBJECT_DELETE. */
   deleteObject(objectId: string): void;
+  /** Update the full-document search query and derive matches from loaded page models (VW-4). */
+  setSearchQuery(query: string): void;
+  /** Advance to the next match (wraps around; switches page if needed). */
+  nextSearchMatch(): void;
+  /** Move to the previous match (wraps around; switches page if needed). */
+  prevSearchMatch(): void;
 }
 
 export type EditorStore = StoreApi<EditorState & EditorActions>;
@@ -158,6 +170,9 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
       cursor: 0,
       addTextMode: false,
       nudgePreview: null,
+      searchQuery: '',
+      searchMatches: [],
+      searchMatchIndex: 0,
 
       async openFiles(files) {
         const picked = pickSingleFile(files);
@@ -201,6 +216,9 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
           cursor: 0,
           addTextMode: false,
           nudgePreview: null,
+          searchQuery: '',
+          searchMatches: [],
+          searchMatchIndex: 0,
         }));
         if (previous) {
           cache.clear(previous.id);
@@ -425,6 +443,48 @@ export function createEditorStore(deps: EditorDeps): EditorStore {
         get().pushOperation(
           createOperation<ObjectDeleteOp>({ type: 'OBJECT_DELETE', objectId, pageIndex: view.pageIndex }),
         );
+      },
+
+      setSearchQuery(query) {
+        const { document } = get();
+        if (!query.trim() || !document) {
+          set({ searchQuery: query, searchMatches: [], searchMatchIndex: 0 });
+          return;
+        }
+        const lower = query.toLowerCase();
+        const matches: { pageIndex: number; lineId: string }[] = [];
+        for (let pi = 0; pi < document.pageCount; pi++) {
+          const model = cache.get(document.id, pi);
+          if (!model) continue;
+          for (const line of model.lines) {
+            if (line.text.toLowerCase().includes(lower)) {
+              matches.push({ pageIndex: pi, lineId: line.id });
+            }
+          }
+        }
+        set({ searchQuery: query, searchMatches: matches, searchMatchIndex: 0 });
+      },
+
+      nextSearchMatch() {
+        const { searchMatches, searchMatchIndex } = get();
+        if (!searchMatches.length) return;
+        const next = (searchMatchIndex + 1) % searchMatches.length;
+        const match = searchMatches[next];
+        set({ searchMatchIndex: next });
+        if (match && match.pageIndex !== get().view.pageIndex) {
+          get().goToPage(match.pageIndex);
+        }
+      },
+
+      prevSearchMatch() {
+        const { searchMatches, searchMatchIndex } = get();
+        if (!searchMatches.length) return;
+        const prev = (searchMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+        const match = searchMatches[prev];
+        set({ searchMatchIndex: prev });
+        if (match && match.pageIndex !== get().view.pageIndex) {
+          get().goToPage(match.pageIndex);
+        }
       },
 
       selectObject: (id) => set({ selection: id }),

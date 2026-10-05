@@ -4,6 +4,7 @@ import type { PageGeometry } from './coordinates';
 import { findFontDictionary, fontFactsFromDictionary, readFontDictionary, unknownFontFacts } from './font-descriptor';
 import { identifyFont } from './font-resolver';
 import { fontSizeFromMatrix, horizontalScalingFromMatrix, lineHeight } from './font-style-extractor';
+import { extractPalette } from './pdf-color-extractor';
 import { extractImages, type ImageSourcePage } from './pdf-image-extractor';
 import { readPageText, type PdfJsFont, type TextSourcePage } from './pdf-text-extractor';
 import { lineId, mergeFragments, readingOrder, runBox, runHead } from './text-geometry';
@@ -86,5 +87,6 @@ export async function buildPageModel(ctx: BuildPageModelContext): Promise<PageMo
     });
   }
   const images = await extractImages(ctx.page, ctx.pageIndex);
-  return { pageIndex: ctx.pageIndex, lines, images };
+  const palette = extractPalette(lines);
+  return { pageIndex: ctx.pageIndex, lines, images, palette };
 }

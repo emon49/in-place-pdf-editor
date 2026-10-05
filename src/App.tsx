@@ -11,9 +11,12 @@ import { PatchLayer } from './components/PatchLayer';
 import { PDFUploader } from './components/PDFUploader';
 import { PDFViewer } from './components/PDFViewer';
 import { ImagePropertiesPanel, PropertiesPanel } from './components/PropertiesPanel';
+import { SearchHighlightLayer } from './components/SearchHighlightLayer';
+import { ShortcutsModal } from './components/ShortcutsModal';
 import { Sidebar } from './components/Sidebar';
 import { StyleControls } from './components/StyleControls';
 import { TextObjectsTab } from './components/TextObjectsTab';
+import { ThumbnailsTab } from './components/ThumbnailsTab';
 import { ImageLayer } from './components/ImageLayer';
 import { ImagesTab } from './components/ImagesTab';
 import { TextOverlay } from './components/TextOverlay';
@@ -62,6 +65,8 @@ function PageOverlay({
   onMove,
   onImageResize,
   onImageReplace,
+  searchMatchIds,
+  currentMatchId,
 }: {
   documentId: string;
   pageIndex: number;
@@ -77,6 +82,8 @@ function PageOverlay({
   onMove?: (id: string, to: Point) => void;
   onImageResize?: (id: string, to: import('./lib/coordinates').Rect) => void;
   onImageReplace?: (id: string, file: File, fit: ImageFitMode) => void;
+  searchMatchIds?: ReadonlySet<string>;
+  currentMatchId?: string | null;
 }) {
   const { status, model } = usePageModel(documentId, pageIndex);
   const selection = useEditor((s) => s.selection);
@@ -147,6 +154,15 @@ function PageOverlay({
 
   return (
     <>
+      {model && searchMatchIds && searchMatchIds.size > 0 && (
+        <SearchHighlightLayer
+          lines={lines}
+          geometry={geometry}
+          zoom={zoom}
+          matchIds={searchMatchIds}
+          currentMatchId={currentMatchId ?? null}
+        />
+      )}
       {model && (
         <MaskLayer lines={lines} geometry={geometry} zoom={zoom} />
       )}
@@ -221,6 +237,10 @@ export function App() {
   const [pageGeometry, setPageGeometry] = useState<PageGeometry | null>(null);
   const [restoreSession, setRestoreSession] = useState<SessionData | null>(null);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const searchQuery = useEditor((s) => s.searchQuery);
+  const searchMatches = useEditor((s) => s.searchMatches);
+  const searchMatchIndex = useEditor((s) => s.searchMatchIndex);
   const docIdForPage = document?.id;
   const activeModel = usePageModel(docIdForPage, view.pageIndex);
   const activeImages = activeModel.model ? editorStore.getState().previewImages(view.pageIndex) : [];
@@ -492,6 +512,10 @@ export function App() {
         setExportModalOpen((prev) => !prev);
         return;
       }
+      if (action === 'openShortcuts') {
+        setShortcutsOpen((prev) => !prev);
+        return;
+      }
       const s = editorStore.getState();
       if (action === 'resetZoom') s.setZoom(1);
       else s[action]();
@@ -519,6 +543,13 @@ export function App() {
         onToggleAddText={() => actions.setAddTextMode(!addTextMode)}
         editCount={cursor}
         onExport={document ? () => setExportModalOpen(true) : undefined}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
+        searchQuery={document ? searchQuery : undefined}
+        searchMatchCount={document ? searchMatches.length : undefined}
+        searchMatchNumber={document ? (searchMatches.length > 0 ? searchMatchIndex + 1 : 0) : undefined}
+        onSearchChange={document ? (q) => actions.setSearchQuery(q) : undefined}
+        onSearchNext={document ? actions.nextSearchMatch : undefined}
+        onSearchPrev={document ? actions.prevSearchMatch : undefined}
       />
       <UpdatePrompt />
       {autoSaveStatus === 'quota-exceeded' && (
@@ -541,7 +572,11 @@ export function App() {
       )}
       {selectedStyle && (
         <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-1.5">
-          <StyleControls style={selectedStyle} onChange={handleStyleChange} />
+          <StyleControls
+            style={selectedStyle}
+            onChange={handleStyleChange}
+            palette={activeModel.model?.palette}
+          />
           <FontTierExplanation resolvedFont={selectedResolvedFont} />
           {selectedLine && (selectedLine.currentText !== selectedLine.text || selectedLine.deleted) && (
             <button
@@ -620,6 +655,18 @@ export function App() {
                     ),
                   },
                   {
+                    id: 'thumbnails',
+                    label: 'Pages',
+                    content: (
+                      <ThumbnailsTab
+                        documentId={document.id}
+                        pageCount={document.pageCount}
+                        activePageIndex={view.pageIndex}
+                        onGoToPage={actions.goToPage}
+                      />
+                    ),
+                  },
+                  {
                     id: 'images',
                     label: 'Images',
                     content: activeImages.length > 0 ? (
@@ -659,6 +706,15 @@ export function App() {
                   renderOverlay={({ geometry, pageIndex, zoom }) => {
                     currentGeometryRef.current = { geometry, zoom };
                     if (pageGeometry !== geometry) setPageGeometry(geometry);
+                    // Build per-page match ID set for the search highlight layer.
+                    const pageMatchIds = new Set(
+                      searchMatches
+                        .filter((m) => m.pageIndex === pageIndex)
+                        .map((m) => m.lineId),
+                    );
+                    const currentMatch = searchMatches[searchMatchIndex];
+                    const currentMatchId =
+                      currentMatch && currentMatch.pageIndex === pageIndex ? currentMatch.lineId : null;
                     return (
                       <PageOverlay
                         documentId={document.id}
@@ -678,6 +734,8 @@ export function App() {
                         onMove={handleMove}
                         onImageResize={handleImageResize}
                         onImageReplace={handleImageReplace}
+                        searchMatchIds={pageMatchIds}
+                        currentMatchId={currentMatchId}
                       />
                     );
                   }}
@@ -720,6 +778,7 @@ export function App() {
           />
         );
       })()}
+      {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
     </div>
   );
 }
