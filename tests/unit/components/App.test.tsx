@@ -168,7 +168,7 @@ describe('text editing operations (7.x)', () => {
     expect(screen.queryByTestId('inline-text-editor')).toBeNull();
   });
 
-  it('commit clears selection (7.4)', async () => {
+  it('commit preserves selection (7.4)', async () => {
     openFakeDocument();
     render(<App />);
     const boxes = await screen.findAllByTestId('text-box');
@@ -178,7 +178,7 @@ describe('text editing operations (7.x)', () => {
     const editor = screen.getByTestId('inline-text-editor');
     fireEvent.change(editor, { target: { value: 'New text' } });
     fireEvent.keyDown(editor, { key: 'Enter' });
-    expect(editorStore.getState().selection).toBeNull();
+    expect(editorStore.getState().selection).toBe('0:0');
   });
 
   it('changed text pushes TEXT_REPLACE; unchanged text pushes no op (7.1)', async () => {

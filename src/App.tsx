@@ -246,8 +246,15 @@ export function App() {
   const activeImages = activeModel.model ? editorStore.getState().previewImages(view.pageIndex) : [];
   usePageSampling(docIdForPage, view.pageIndex, rendered && rendered.documentId === docIdForPage ? rendered.pageIndex : null);
   const currentGeometryRef = useRef<{ geometry: PageGeometry; zoom: number } | null>(null);
+  // Set by handleMove so the spurious background click that fires at the drag-release
+  // position (after the button has already moved) doesn't wipe out the selection.
+  const suppressNextClearRef = useRef(false);
 
   const clearSelection = useCallback((e?: ReactMouseEvent<HTMLDivElement>) => {
+    if (suppressNextClearRef.current) {
+      suppressNextClearRef.current = false;
+      return;
+    }
     editorStore.getState().selectObject(null);
     // In add-text mode, a background click opens an editor at the clicked position
     if (addTextMode && e && currentGeometryRef.current) {
@@ -282,7 +289,8 @@ export function App() {
         }),
       );
     }
-    s.selectObject(null);
+    // Keep the block selected after committing an edit so the user can see it
+    // and continue working; a click on empty page space still deselects it.
   }, []);
 
   const handleCancelEdit = useCallback(() => {
@@ -355,6 +363,9 @@ export function App() {
     const s = editorStore.getState();
     const geo = pageGeometry;
     if (!geo) return;
+    // Suppress the spurious background click that fires after the drag-release pointer-up
+    // (click fires at the release position which may no longer be over the button after re-render).
+    suppressNextClearRef.current = true;
     s.moveObject(id, to, geo);
   }, [pageGeometry]);
 
