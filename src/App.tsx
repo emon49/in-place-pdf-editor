@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { Banner } from './components/Banner';
 import { ExportModal } from './components/ExportModal';
 import { FontTierExplanation } from './components/FontTierExplanation';
@@ -247,7 +247,7 @@ export function App() {
   usePageSampling(docIdForPage, view.pageIndex, rendered && rendered.documentId === docIdForPage ? rendered.pageIndex : null);
   const currentGeometryRef = useRef<{ geometry: PageGeometry; zoom: number } | null>(null);
 
-  const clearSelection = useCallback((e?: MouseEvent) => {
+  const clearSelection = useCallback((e?: ReactMouseEvent<HTMLDivElement>) => {
     editorStore.getState().selectObject(null);
     // In add-text mode, a background click opens an editor at the clicked position
     if (addTextMode && e && currentGeometryRef.current) {

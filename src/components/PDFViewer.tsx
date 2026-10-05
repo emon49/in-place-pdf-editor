@@ -70,7 +70,7 @@ export interface PDFViewerProps {
   /** Overlay that needs the page's geometry; `pageIndex` is the page actually loaded, which may lag `pageIndex`. */
   renderOverlay?: (info: { geometry: PageGeometry; pageIndex: number; zoom: number }) => ReactNode;
   /** A click on the viewer that no overlay box handled (empty page space or the surround). */
-  onBackgroundClick?: (e: MouseEvent) => void;
+  onBackgroundClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   /** The page finished rendering to the canvas. */
   onPageRendered?: (pageIndex: number) => void;
 }
@@ -149,14 +149,6 @@ export function PDFViewer({ getPage, pageIndex, pageCount, zoom, fitMode, onFitZ
     onRenderedRef.current = onPageRendered;
   }, [onPageRendered]);
 
-  // Clicks that reach the viewer (boxes stop propagation) are background clicks. A listener rather than a
-  // JSX handler: the keyboard equivalent is Escape, handled by the overlay.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !onBackgroundClick) return;
-    el.addEventListener('click', onBackgroundClick);
-    return () => el.removeEventListener('click', onBackgroundClick);
-  }, [onBackgroundClick]);
 
   // Load the active page; a newer page index supersedes pending loads.
   useEffect(() => {
@@ -258,6 +250,7 @@ export function PDFViewer({ getPage, pageIndex, pageCount, zoom, fitMode, onFitZ
       tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex
       role="region"
       aria-label="Page viewer"
+      onClick={onBackgroundClick}
     >
       {css && (
         <div
