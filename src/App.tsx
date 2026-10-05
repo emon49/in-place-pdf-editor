@@ -1,6 +1,7 @@
 import { Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Banner } from './components/Banner';
+import { ExportModal } from './components/ExportModal';
 import { FontTierExplanation } from './components/FontTierExplanation';
 import { Header } from './components/Header';
 import { HistoryTab } from './components/HistoryTab';
@@ -219,6 +220,7 @@ export function App() {
   const [rendered, setRendered] = useState<{ documentId: string; pageIndex: number } | null>(null);
   const [pageGeometry, setPageGeometry] = useState<PageGeometry | null>(null);
   const [restoreSession, setRestoreSession] = useState<SessionData | null>(null);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const docIdForPage = document?.id;
   const activeModel = usePageModel(docIdForPage, view.pageIndex);
   const activeImages = activeModel.model ? editorStore.getState().previewImages(view.pageIndex) : [];
@@ -486,6 +488,10 @@ export function App() {
       });
       if (!action) return;
       e.preventDefault();
+      if (action === 'openExport') {
+        setExportModalOpen((prev) => !prev);
+        return;
+      }
       const s = editorStore.getState();
       if (action === 'resetZoom') s.setZoom(1);
       else s[action]();
@@ -512,6 +518,7 @@ export function App() {
         addTextMode={addTextMode}
         onToggleAddText={() => actions.setAddTextMode(!addTextMode)}
         editCount={cursor}
+        onExport={document ? () => setExportModalOpen(true) : undefined}
       />
       <UpdatePrompt />
       {autoSaveStatus === 'quota-exceeded' && (
@@ -697,6 +704,22 @@ export function App() {
           )}
         </PDFUploader>
       </main>
+      {exportModalOpen && document && (() => {
+        const handle = documentRegistry.get(document.id);
+        const originalBytes = handle?.originalBytes;
+        if (!originalBytes) return null;
+        const s = editorStore.getState();
+        return (
+          <ExportModal
+            sourceName={document.name}
+            pageCount={document.pageCount}
+            previewLinesFn={s.previewLines}
+            previewImagesFn={s.previewImages}
+            originalBytes={originalBytes}
+            onClose={() => setExportModalOpen(false)}
+          />
+        );
+      })()}
     </div>
   );
 }

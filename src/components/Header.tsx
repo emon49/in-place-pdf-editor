@@ -1,4 +1,4 @@
-import { FileText, FolderOpen, Type } from 'lucide-react';
+import { Download, FileText, FolderOpen, Type } from 'lucide-react';
 import { useRef } from 'react';
 import { SAMPLE_CATALOG, type SampleId } from '../lib/sample-catalog';
 import type { FitMode } from '../store/editorStore';
@@ -21,6 +21,7 @@ export interface HeaderProps {
   addTextMode: boolean;
   onToggleAddText: () => void;
   editCount: number;
+  onExport?: () => void;
 }
 
 /** Top toolbar (PRD §7.1, M0 subset). */
@@ -90,6 +91,17 @@ export function Header(props: HeaderProps) {
             </span>
           )}
           <div className="ml-auto flex flex-wrap items-center gap-3">
+            {props.onExport && (
+              <button
+                type="button"
+                data-testid="export-button"
+                onClick={props.onExport}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              >
+                <Download aria-hidden="true" className="size-4" />
+                Export PDF
+              </button>
+            )}
             <button
               type="button"
               data-testid="add-text-button"

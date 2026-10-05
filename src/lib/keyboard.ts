@@ -31,7 +31,8 @@ export type ViewerKeyAction =
   | 'zoomOut'
   | 'resetZoom'
   | 'undo'
-  | 'redo';
+  | 'redo'
+  | 'openExport';
 
 export interface KeyLike {
   readonly key: string;
@@ -65,6 +66,7 @@ export function viewerKeyAction(e: KeyLike): ViewerKeyAction | null {
       return 'undo';
     }
     if (e.key === 'y' || e.key === 'Y') return 'redo';
+    if (e.key === 's' || e.key === 'S') return 'openExport';
     if (!e.inViewer) return null;
     if (e.key === '=' || e.key === '+') return 'zoomIn';
     if (e.key === '-' || e.key === '_') return 'zoomOut';

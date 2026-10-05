@@ -46,7 +46,13 @@ describe('viewer keyboard shortcuts', () => {
   it('ignores unrelated keys and Alt combinations', () => {
     expect(viewerKeyAction(key('ArrowDown'))).toBeNull();
     expect(viewerKeyAction(key('PageDown', { altKey: true }))).toBeNull();
-    expect(viewerKeyAction(key('s', { ctrlKey: true }))).toBeNull();
+  });
+
+  it('Ctrl/Cmd+S → openExport (global, not gated on inViewer)', () => {
+    expect(viewerKeyAction(key('s', { ctrlKey: true }))).toBe('openExport');
+    expect(viewerKeyAction(key('S', { ctrlKey: true }))).toBe('openExport');
+    expect(viewerKeyAction(key('s', { metaKey: true }))).toBe('openExport');
+    expect(viewerKeyAction(key('s', { ctrlKey: true, inViewer: false }))).toBe('openExport');
   });
 
   it('Ctrl+Z → undo (global, not gated on inViewer)', () => {
