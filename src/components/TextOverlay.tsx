@@ -19,8 +19,6 @@ export interface TextOverlayProps {
   onSelect: (id: string | null) => void;
   /** Keyboard stepping through reading order (Tab / Shift+Tab). */
   onStep: (direction: 1 | -1) => void;
-  /** Double-click on an unlocked line to start editing. */
-  onDoubleClick?: (id: string) => void;
   /** Called when a drag gesture commits a move; receives the new box origin in Page Space. */
   onMove?: (id: string, to: Point) => void;
 }
@@ -42,7 +40,7 @@ interface DragState {
  * Boxes are real buttons so focus, keyboard operation and announcement come from the platform (design D10).
  * The container ignores the pointer so clicks on empty page space reach the viewer and clear the selection.
  */
-export function TextOverlay({ lines, geometry, zoom, selectedId, onSelect, onStep, onDoubleClick, onMove }: TextOverlayProps) {
+export function TextOverlay({ lines, geometry, zoom, selectedId, onSelect, onStep, onMove }: TextOverlayProps) {
   const refs = useRef(new Map<string, HTMLButtonElement>());
   const overlayRef = useRef<HTMLDivElement>(null);
   const selected = lines.find((l) => l.id === selectedId) ?? null;
@@ -186,7 +184,6 @@ export function TextOverlay({ lines, geometry, zoom, selectedId, onSelect, onSte
             }}
             onDoubleClick={(event) => {
               event.stopPropagation();
-              if (!locked && onDoubleClick) onDoubleClick(line.id);
             }}
             onFocus={() => {
               // Only select on keyboard-initiated focus; pointer clicks select via onClick

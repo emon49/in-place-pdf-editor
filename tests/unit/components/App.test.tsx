@@ -153,57 +153,58 @@ describe('text editing operations (7.x)', () => {
     editorStore.setState({ ops: [], cursor: 0 });
   });
 
-  it('double-click opens the inline editor, locked line ignores double-click (7.4)', async () => {
+  it('clicking a text box shows the side-panel text editor; locked line shows disabled textarea (7.4)', async () => {
     openFakeDocument();
     render(<App />);
     const boxes = await screen.findAllByTestId('text-box');
-    // Double-click unlocked line opens editor
-    fireEvent.dblClick(boxes[0] as HTMLElement);
-    expect(screen.getByTestId('inline-text-editor')).toBeTruthy();
-    // Escape cancels
-    fireEvent.keyDown(screen.getByTestId('inline-text-editor'), { key: 'Escape' });
-    expect(screen.queryByTestId('inline-text-editor')).toBeNull();
-    // Double-click locked line (DRAFT) does not open editor
-    fireEvent.dblClick(boxes[2] as HTMLElement);
-    expect(screen.queryByTestId('inline-text-editor')).toBeNull();
+    // Click unlocked line -> text editor panel appears
+    fireEvent.click(boxes[0] as HTMLElement);
+    expect(await screen.findByTestId('text-editor-panel')).toBeTruthy();
+    const textarea = screen.getByTestId('text-editor-textarea') as HTMLTextAreaElement;
+    expect(textarea.disabled).toBe(false);
+    // Click locked line (DRAFT, index 2) -> textarea should be disabled
+    fireEvent.click(boxes[2] as HTMLElement);
+    const lockedTextarea = await screen.findByTestId('text-editor-textarea') as HTMLTextAreaElement;
+    expect(lockedTextarea.disabled).toBe(true);
   });
 
-  it('commit preserves selection (7.4)', async () => {
+  it('typing in side-panel textarea then changing selection commits the edit (7.4)', async () => {
     openFakeDocument();
     render(<App />);
     const boxes = await screen.findAllByTestId('text-box');
     fireEvent.click(boxes[0] as HTMLElement);
     expect(editorStore.getState().selection).toBe('0:0');
-    fireEvent.dblClick(boxes[0] as HTMLElement);
-    const editor = screen.getByTestId('inline-text-editor');
-    fireEvent.change(editor, { target: { value: 'New text' } });
-    fireEvent.keyDown(editor, { key: 'Enter' });
-    expect(editorStore.getState().selection).toBe('0:0');
+    const textarea = await screen.findByTestId('text-editor-textarea');
+    fireEvent.change(textarea, { target: { value: 'New text' } });
+    // Selection still '0:0'; change selection to commit
+    fireEvent.click(boxes[1] as HTMLElement);
+    expect(editorStore.getState().selection).toBe('0:1');
   });
 
   it('changed text pushes TEXT_REPLACE; unchanged text pushes no op (7.1)', async () => {
     openFakeDocument();
     render(<App />);
     const boxes = await screen.findAllByTestId('text-box');
-    // Edit with different text -> creates op
-    fireEvent.dblClick(boxes[0] as HTMLElement);
-    const editor = screen.getByTestId('inline-text-editor') as HTMLTextAreaElement;
-    fireEvent.change(editor, { target: { value: 'Updated report' } });
-    fireEvent.keyDown(editor, { key: 'Enter' });
+    // Select box 0 and type different text
+    fireEvent.click(boxes[0] as HTMLElement);
+    const textarea = await screen.findByTestId('text-editor-textarea') as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'Updated report' } });
+    // Change selection to box 1 to commit
+    fireEvent.click(boxes[1] as HTMLElement);
     const { ops, cursor } = editorStore.getState();
     expect(cursor).toBe(1);
     expect(ops[0]?.type).toBe('TEXT_REPLACE');
     expect((ops[0] as { newText?: string }).newText).toBe('Updated report');
-    // Edit with same text -> no new op
-    fireEvent.dblClick((await screen.findAllByTestId('text-box'))[1] as HTMLElement);
-    const editor2 = screen.getByTestId('inline-text-editor') as HTMLTextAreaElement;
-    const originalText = editor2.value;
-    fireEvent.change(editor2, { target: { value: originalText } });
-    fireEvent.keyDown(editor2, { key: 'Enter' });
+    // Select box 1 and type the same text back -> no new op
+    const textarea2 = await screen.findByTestId('text-editor-textarea') as HTMLTextAreaElement;
+    const originalText = textarea2.value;
+    fireEvent.change(textarea2, { target: { value: originalText } });
+    // Change selection back to box 0
+    fireEvent.click((await screen.findAllByTestId('text-box'))[0] as HTMLElement);
     expect(editorStore.getState().cursor).toBe(1); // no new op
   });
 
-  it('Delete with selection pushes OBJECT_DELETE, Delete inside editor does not (7.2)', async () => {
+  it('Delete with selection pushes OBJECT_DELETE, Delete inside side-panel textarea does not (7.2)', async () => {
     openFakeDocument();
     render(<App />);
     // Select a line then press Delete
@@ -214,12 +215,12 @@ describe('text editing operations (7.x)', () => {
     const { ops, cursor } = editorStore.getState();
     expect(cursor).toBe(1);
     expect(ops[0]?.type).toBe('OBJECT_DELETE');
-    // Open editor - Delete inside it does not create an op
+    // Select another line and press Delete inside the textarea - must not create an op
     const boxes2 = await screen.findAllByTestId('text-box');
-    fireEvent.dblClick(boxes2[0] as HTMLElement);
-    const editor = screen.getByTestId('inline-text-editor');
+    fireEvent.click(boxes2[0] as HTMLElement);
+    const textarea = await screen.findByTestId('text-editor-textarea');
     const cursorBefore = editorStore.getState().cursor;
-    fireEvent.keyDown(editor, { key: 'Delete' });
+    fireEvent.keyDown(textarea, { key: 'Delete' });
     expect(editorStore.getState().cursor).toBe(cursorBefore);
   });
 });
@@ -240,11 +241,13 @@ describe('revert to original (10.3)', () => {
     openFakeDocument();
     render(<App />);
     const boxes = await screen.findAllByTestId('text-box');
-    fireEvent.dblClick(boxes[0] as HTMLElement);
-    const editor = screen.getByTestId('inline-text-editor');
-    fireEvent.change(editor, { target: { value: 'Edited text' } });
-    fireEvent.keyDown(editor, { key: 'Enter' });
-    // Select the edited box
+    // Select box 0 and type new text
+    fireEvent.click(boxes[0] as HTMLElement);
+    const textarea = await screen.findByTestId('text-editor-textarea');
+    fireEvent.change(textarea, { target: { value: 'Edited text' } });
+    // Change selection to commit the edit
+    fireEvent.click((await screen.findAllByTestId('text-box'))[1] as HTMLElement);
+    // Re-select box 0 - revert button should appear
     fireEvent.click((await screen.findAllByTestId('text-box'))[0] as HTMLElement);
     expect(screen.getByTestId('revert-to-original')).toBeTruthy();
     fireEvent.click(screen.getByTestId('revert-to-original'));
@@ -264,12 +267,13 @@ describe('patches and masks update on undo/redo (8.4)', () => {
     openFakeDocument();
     render(<App />);
     const boxes = await screen.findAllByTestId('text-box');
-    // Edit text to create a patch and mask
-    fireEvent.dblClick(boxes[0] as HTMLElement);
-    const editor = screen.getByTestId('inline-text-editor');
-    fireEvent.change(editor, { target: { value: 'New text' } });
-    fireEvent.keyDown(editor, { key: 'Enter' });
-    // Patch and mask should be visible
+    // Select box 0 and type new text
+    fireEvent.click(boxes[0] as HTMLElement);
+    const textarea = await screen.findByTestId('text-editor-textarea');
+    fireEvent.change(textarea, { target: { value: 'New text' } });
+    // Change selection to commit the edit
+    fireEvent.click(boxes[1] as HTMLElement);
+    // Patch and mask should be visible on box 0
     expect(await screen.findByTestId('mask')).toBeTruthy();
     expect(screen.getByTestId('patch')).toBeTruthy();
     // Undo removes them

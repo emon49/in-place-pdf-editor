@@ -10,7 +10,7 @@ import { MaskLayer } from './components/MaskLayer';
 import { PatchLayer } from './components/PatchLayer';
 import { PDFUploader } from './components/PDFUploader';
 import { PDFViewer } from './components/PDFViewer';
-import { ImagePropertiesPanel, PropertiesPanel } from './components/PropertiesPanel';
+import { ImagePropertiesPanel, TextEditorPanel } from './components/PropertiesPanel';
 import { SearchHighlightLayer } from './components/SearchHighlightLayer';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { Sidebar } from './components/Sidebar';
@@ -32,7 +32,7 @@ import { usePageModel, usePageSampling } from './store/usePageModel';
 import { clearSession, loadSession, useAutoSave } from './store/useAutoSave';
 import type { SessionData } from './lib/session-store';
 import { documentRegistry, editorStore, openSample, useEditor } from './store/useEditor';
-import { screenToPage, type PageGeometry, type Point } from './lib/coordinates';
+import { displayRectToPage, pageRectToDisplay, screenToPage, type PageGeometry, type Point } from './lib/coordinates';
 
 const DEFAULT_ADD_TEXT_STYLE: TextStyle = {
   fontClass: 'sans',
@@ -55,10 +55,7 @@ function PageOverlay({
   pageIndex,
   geometry,
   zoom,
-  editingId,
-  onStartEdit,
-  onCommitEdit,
-  onCancelEdit,
+  draftOverride,
   addTextPos,
   onCommitAddText,
   onCancelAddText,
@@ -72,10 +69,8 @@ function PageOverlay({
   pageIndex: number;
   geometry: PageGeometry;
   zoom: number;
-  editingId: string | null;
-  onStartEdit: (id: string) => void;
-  onCommitEdit: (id: string, text: string) => void;
-  onCancelEdit: () => void;
+  /** Live draft text from the side panel editor, applied before rendering. */
+  draftOverride?: { id: string; text: string };
   addTextPos: { point: Point; geometry: PageGeometry } | null;
   onCommitAddText: (text: string, style: TextStyle) => void;
   onCancelAddText: () => void;
@@ -93,17 +88,18 @@ function PageOverlay({
   const pageWidth = geometry.box[2] - geometry.box[0];
   const lines: PreviewLine[] = rawLines.map((line) => {
     if (line.deleted) return line;
+    const isDraftTarget = draftOverride !== undefined && draftOverride.id === line.id;
+    const effectiveText = isDraftTarget ? draftOverride.text : line.currentText;
     const moved = line.currentBox.x !== line.box.x || line.currentBox.y !== line.box.y;
-    const textChanged = line.currentText !== line.text;
-    if (line.patchLayout === null && (textChanged || moved)) {
-      // For moved lines, anchor layout at currentBox; for text-only changes use currentBox too.
+    const textChanged = effectiveText !== line.text;
+    if (textChanged || moved) {
+      // Force patchLayout recompute from effectiveText (handles live draft preview).
       const layoutBox = moved ? line.currentBox : line.box;
-      const { lines: pl } = layoutText(line.currentText, line.currentStyle, layoutBox, pageWidth);
-      return { ...line, patchLayout: pl };
+      const { lines: pl } = layoutText(effectiveText, line.currentStyle, layoutBox, pageWidth);
+      return { ...line, currentText: effectiveText, patchLayout: pl };
     }
-    return line;
+    return isDraftTarget ? { ...line, currentText: effectiveText } : line;
   });
-  const editingLine = editingId ? lines.find((l) => l.id === editingId) ?? null : null;
 
   // Infer style from the nearest non-deleted TextLine above the add-text point
   const addTextStyle = (() => {
@@ -174,10 +170,9 @@ function PageOverlay({
           lines={lines}
           geometry={geometry}
           zoom={zoom}
-          selectedId={editingId ?? (selection && !selection.startsWith('img:') ? selection : null)}
+          selectedId={selection && !selection.startsWith('img:') ? selection : null}
           onSelect={selectObject}
           onStep={stepSelection}
-          onDoubleClick={onStartEdit}
           onMove={onMove}
         />
       )}
@@ -191,15 +186,6 @@ function PageOverlay({
           onMove={onMove}
           onResize={onImageResize}
           onReplace={onImageReplace}
-        />
-      )}
-      {editingLine && (
-        <InlineTextEditor
-          line={editingLine}
-          zoom={zoom}
-          pageGeometry={geometry}
-          onCommit={(text) => onCommitEdit(editingLine.id, text)}
-          onCancel={onCancelEdit}
         />
       )}
       {addTextLine && (
@@ -229,8 +215,11 @@ export function App() {
   const addTextMode = useEditor((s) => s.addTextMode);
   const cursor = useEditor((s) => s.cursor);
   const actions = editorStore.getState();
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [addTextPos, setAddTextPos] = useState<{ point: Point; geometry: PageGeometry } | null>(null);
+  /** Draft text for the side-panel text editor (null when no text block is selected). */
+  const [draftText, setDraftText] = useState<string | null>(null);
+  /** Ref always carries the latest draft so the selection-change effect can read it without a stale closure. */
+  const draftRef = useRef<{ id: string; text: string; pageIndex: number } | null>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const selection = useEditor((s) => s.selection);
   const [rendered, setRendered] = useState<{ documentId: string; pageIndex: number } | null>(null);
@@ -268,34 +257,48 @@ export function App() {
     }
   }, [addTextMode]);
 
-  const handleStartEdit = useCallback((id: string) => {
-    setEditingId(id);
+  /** Called on every keystroke in the side-panel textarea. Updates draft + ref. */
+  const handleDraftChange = useCallback((text: string) => {
+    setDraftText(text);
+    if (draftRef.current) draftRef.current.text = text;
   }, []);
 
-  const handleCommitEdit = useCallback((id: string, newText: string) => {
-    setEditingId(null);
-    const s = editorStore.getState();
-    // Get original text from current preview lines
-    const preview = s.previewLines(s.view.pageIndex);
-    const line = preview.find((l) => l.id === id);
-    if (!line) return;
-    if (newText !== line.currentText) {
-      s.pushOperation(
-        createOperation<TextReplaceOp>({
-          type: 'TEXT_REPLACE',
-          objectId: id,
-          newText,
-          pageIndex: s.view.pageIndex,
-        }),
-      );
+  // When selection changes: commit any pending draft, then seed draft for the new selection.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const prev = draftRef.current;
+    if (prev) {
+      const s = editorStore.getState();
+      const preview = s.previewLines(prev.pageIndex);
+      const prevLine = preview.find((l) => l.id === prev.id);
+      if (prevLine && prev.text !== prevLine.currentText) {
+        s.pushOperation(
+          createOperation<TextReplaceOp>({
+            type: 'TEXT_REPLACE',
+            objectId: prev.id,
+            newText: prev.text,
+            pageIndex: prev.pageIndex,
+          }),
+        );
+      }
+      draftRef.current = null;
     }
-    // Keep the block selected after committing an edit so the user can see it
-    // and continue working; a click on empty page space still deselects it.
-  }, []);
 
-  const handleCancelEdit = useCallback(() => {
-    setEditingId(null);
-  }, []);
+    if (selection && !selection.startsWith('img:')) {
+      const s = editorStore.getState();
+      const pi = s.view.pageIndex;
+      const preview = s.previewLines(pi);
+      const line = preview.find((l) => l.id === selection);
+      if (line && !line.deleted) {
+        setDraftText(line.currentText);
+        draftRef.current = { id: selection, text: line.currentText, pageIndex: pi };
+      } else {
+        setDraftText(null);
+      }
+    } else {
+      setDraftText(null);
+    }
+  }, [selection]);
 
   const handleCommitAddText = useCallback((text: string, style: TextStyle) => {
     if (!addTextPos) return;
@@ -369,6 +372,18 @@ export function App() {
     s.moveObject(id, to, geo);
   }, [pageGeometry]);
 
+  const handlePositionCommit = useCallback((displayX: number, displayY: number) => {
+    if (!pageGeometry || !selection) return;
+    const s = editorStore.getState();
+    const preview = s.previewLines(s.view.pageIndex);
+    const line = preview.find((l) => l.id === selection);
+    if (!line) return;
+    const displayRect = pageRectToDisplay(pageGeometry, line.currentBox);
+    const newDisplayRect = { x: displayX, y: displayY, width: displayRect.width, height: displayRect.height };
+    const pageRect = displayRectToPage(pageGeometry, newDisplayRect);
+    handleMove(selection, { x: pageRect.x, y: pageRect.y });
+  }, [pageGeometry, selection, handleMove]);
+
   const handleImageResize = useCallback((id: string, to: import('./lib/coordinates').Rect) => {
     editorStore.getState().resizeImage(id, to);
   }, []);
@@ -385,6 +400,12 @@ export function App() {
   })();
   const selectedStyle = selectedLine?.currentStyle ?? null;
   const selectedResolvedFont = selectedLine?.resolvedFont ?? null;
+  const selectedPosition = selectedLine && pageGeometry
+    ? (() => {
+        const dr = pageRectToDisplay(pageGeometry, selectedLine.currentBox);
+        return { x: Math.round(dr.x * 10) / 10, y: Math.round(dr.y * 10) / 10 };
+      })()
+    : undefined;
 
   const selectedImage = (() => {
     if (!selection?.startsWith('img:') || !document) return null;
@@ -587,6 +608,9 @@ export function App() {
             style={selectedStyle}
             onChange={handleStyleChange}
             palette={activeModel.model?.palette}
+            position={selectedPosition}
+            onPositionCommit={handlePositionCommit}
+            positionLocked={selectedLine?.lockReason !== null}
           />
           <FontTierExplanation resolvedFont={selectedResolvedFont} />
           {selectedLine && (selectedLine.currentText !== selectedLine.text || selectedLine.deleted) && (
@@ -732,10 +756,11 @@ export function App() {
                         pageIndex={pageIndex}
                         geometry={geometry}
                         zoom={zoom}
-                        editingId={editingId}
-                        onStartEdit={handleStartEdit}
-                        onCommitEdit={handleCommitEdit}
-                        onCancelEdit={handleCancelEdit}
+                        draftOverride={
+                          draftText !== null && selection && !selection.startsWith('img:')
+                            ? { id: selection, text: draftText }
+                            : undefined
+                        }
                         addTextPos={addTextPos}
                         onCommitAddText={handleCommitAddText}
                         onCancelAddText={() => {
@@ -752,12 +777,11 @@ export function App() {
                   }}
                 />
               </div>
-              {selection && selectedLine && pageGeometry && (
-                <PropertiesPanel
+              {selection && selectedLine && draftText !== null && (
+                <TextEditorPanel
                   line={selectedLine}
-                  geometry={pageGeometry}
-                  onMove={(to) => handleMove(selection, to)}
-                  onStyleChange={handleStyleChange}
+                  text={draftText}
+                  onTextChange={handleDraftChange}
                 />
               )}
               {selection && selectedImage && pageGeometry && (

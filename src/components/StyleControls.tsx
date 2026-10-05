@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { CATALOG_ENTRIES } from '../lib/font-catalog';
 import type { TextStyle } from '../types/operations';
 
@@ -6,12 +7,33 @@ export interface StyleControlsProps {
   onChange: (patch: Partial<TextStyle>) => void;
   /** Document palette swatches for quick color selection (TY-10). */
   palette?: readonly string[];
+  /** Position in display coordinates (top-left origin, pt). Shown when provided. */
+  position?: { x: number; y: number };
+  /** Called when the user commits a position edit (display coordinates). */
+  onPositionCommit?: (x: number, y: number) => void;
+  /** Disables the position inputs when true. */
+  positionLocked?: boolean;
 }
 
 const FONT_FAMILIES = CATALOG_ENTRIES.map((e) => e.family);
 
-/** Minimal style controls: font family, size, bold/italic, color. */
-export function StyleControls({ style, onChange, palette }: StyleControlsProps) {
+/** Minimal style controls: font family, size, bold/italic, color, optional X/Y position. */
+export function StyleControls({ style, onChange, palette, position, onPositionCommit, positionLocked }: StyleControlsProps) {
+  const [xEdit, setXEdit] = useState<string | null>(null);
+  const [yEdit, setYEdit] = useState<string | null>(null);
+
+  const xVal = position != null ? String(Math.round(position.x * 10) / 10) : '';
+  const yVal = position != null ? String(Math.round(position.y * 10) / 10) : '';
+  const xInput = xEdit ?? xVal;
+  const yInput = yEdit ?? yVal;
+
+  const commitPosition = () => {
+    if (!onPositionCommit) return;
+    const nx = parseFloat(xInput);
+    const ny = parseFloat(yInput);
+    if (isFinite(nx) && isFinite(ny)) onPositionCommit(nx, ny);
+  };
+
   return (
     <div className="flex items-center gap-2" data-testid="style-controls">
       <label className="sr-only" htmlFor="style-font-family">Font family</label>
@@ -101,6 +123,38 @@ export function StyleControls({ style, onChange, palette }: StyleControlsProps) 
               style={{ backgroundColor: color }}
             />
           ))}
+        </div>
+      )}
+
+      {position != null && (
+        <div className="ml-1 flex items-center gap-1 border-l border-slate-200 pl-2">
+          <span className="text-[10px] text-slate-400">X</span>
+          <input
+            type="number"
+            data-testid="style-pos-x"
+            aria-label="X position (pt)"
+            value={xInput}
+            disabled={positionLocked}
+            onFocus={() => setXEdit(xVal)}
+            onChange={(e) => setXEdit(e.target.value)}
+            onBlur={() => { commitPosition(); setXEdit(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            className="w-14 rounded border border-slate-300 bg-white px-1 py-1 text-center text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
+          />
+          <span className="text-[10px] text-slate-400">Y</span>
+          <input
+            type="number"
+            data-testid="style-pos-y"
+            aria-label="Y position (pt)"
+            value={yInput}
+            disabled={positionLocked}
+            onFocus={() => setYEdit(yVal)}
+            onChange={(e) => setYEdit(e.target.value)}
+            onBlur={() => { commitPosition(); setYEdit(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            className="w-14 rounded border border-slate-300 bg-white px-1 py-1 text-center text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
+          />
+          <span className="text-[10px] text-slate-400">pt</span>
         </div>
       )}
     </div>

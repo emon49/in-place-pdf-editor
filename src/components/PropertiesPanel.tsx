@@ -1,22 +1,8 @@
 import { AlertTriangle, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { displayRectToPage, displaySize, pageRectToDisplay, type PageGeometry, type Point, type Rect } from '../lib/coordinates';
+import { displayRectToPage, pageRectToDisplay, type PageGeometry, type Point, type Rect } from '../lib/coordinates';
 import { hasNonUniformBackground } from '../lib/object-labels';
-import { StyleControls } from './StyleControls';
-import type { FitMode, PreviewImage, PreviewLine, TextStyle } from '../types/operations';
-
-export interface PropertiesPanelProps {
-  line: PreviewLine;
-  geometry: PageGeometry;
-  onMove: (to: Point) => void;
-  onStyleChange: (patch: Partial<TextStyle>) => void;
-}
-
-/** Converts a display-space rect to the X/Y values shown in the panel (Display Coordinates, top-left origin). */
-function toDisplayXY(line: PreviewLine, geometry: PageGeometry): { x: number; y: number } {
-  const dr = pageRectToDisplay(geometry, line.currentBox);
-  return { x: Math.round(dr.x * 10) / 10, y: Math.round(dr.y * 10) / 10 };
-}
+import type { FitMode, PreviewImage, PreviewLine } from '../types/operations';
 
 // ─── Image Properties Panel (IM-3, MV-7) ─────────────────────────────────────
 
@@ -209,30 +195,18 @@ export function ImagePropertiesPanel({ image, geometry, onMove, onResize, onRepl
   );
 }
 
-// ─── Text Properties Panel ────────────────────────────────────────────────────
+// ─── Text Editor Panel ────────────────────────────────────────────────────────
 
-/** Right-side panel shown when a Text Line is selected (MV-5). */
-export function PropertiesPanel({ line, geometry, onMove, onStyleChange }: PropertiesPanelProps) {
-  const displayXY = toDisplayXY(line, geometry);
-  // null = not currently being edited; show the derived value.
-  const [xEdit, setXEdit] = useState<string | null>(null);
-  const [yEdit, setYEdit] = useState<string | null>(null);
-  const xInput = xEdit ?? String(displayXY.x);
-  const yInput = yEdit ?? String(displayXY.y);
+export interface TextEditorPanelProps {
+  line: PreviewLine;
+  /** Controlled draft text shown in the textarea. */
+  text: string;
+  onTextChange: (text: string) => void;
+}
 
-  function commitPosition(rawX: string, rawY: string) {
-    const nx = parseFloat(rawX);
-    const ny = parseFloat(rawY);
-    if (!isFinite(nx) || !isFinite(ny)) return;
-    // Convert Display Coordinates back to Page Space via displayRectToPage.
-    const displayRect = pageRectToDisplay(geometry, line.currentBox);
-    const newDisplayRect = { x: nx, y: ny, width: displayRect.width, height: displayRect.height };
-    const pageRect = displayRectToPage(geometry, newDisplayRect);
-    onMove({ x: pageRect.x, y: pageRect.y });
-  }
-
+/** Right-side panel shown when a Text Line is selected. Replaces the old PropertiesPanel. */
+export function TextEditorPanel({ line, text, onTextChange }: TextEditorPanelProps) {
   const locked = line.lockReason !== null;
-  const moved = line.currentBox.x !== line.box.x || line.currentBox.y !== line.box.y;
   const rf = line.resolvedFont;
 
   const tierLabel = rf
@@ -240,70 +214,40 @@ export function PropertiesPanel({ line, geometry, onMove, onStyleChange }: Prope
     : null;
   const fontLabel = rf ? (rf.tier === 1 ? rf.loadedName : rf.cssFamily) : null;
 
-  const pageH = displaySize(geometry).height;
+  const moved = line.currentBox.x !== line.box.x || line.currentBox.y !== line.box.y;
   const coverage = line.font?.coverage ?? null;
   const undrawableChars =
     line.currentStyle.fontFamilyOverride === null && coverage
-      ? [...line.currentText].filter((ch) => !coverage.has(ch))
+      ? [...text].filter((ch) => !coverage.has(ch))
       : [];
 
   return (
     <aside
-      data-testid="properties-panel"
-      aria-label="Properties"
+      data-testid="text-editor-panel"
+      aria-label="Text Editor"
       className="flex w-56 shrink-0 flex-col gap-3 overflow-y-auto border-l border-slate-200 bg-white p-3 text-xs text-slate-700"
     >
-      <section aria-labelledby="pp-position">
-        <h2 id="pp-position" className="mb-1.5 font-semibold text-slate-500 uppercase tracking-wide" style={{ fontSize: '10px' }}>
-          Position
+      <section className="flex flex-1 flex-col" aria-labelledby="tep-text">
+        <h2 id="tep-text" className="mb-1.5 font-semibold text-slate-500 uppercase tracking-wide" style={{ fontSize: '10px' }}>
+          {locked ? 'Text (locked)' : 'Text'}
         </h2>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-0.5">
-            <span className="text-slate-500">X (pt)</span>
-            <input
-              type="number"
-              data-testid="pp-x"
-              aria-label="X position"
-              value={xInput}
-              disabled={locked}
-              onFocus={() => setXEdit(String(displayXY.x))}
-              onChange={(e) => setXEdit(e.target.value)}
-              onBlur={() => { commitPosition(xInput, yInput); setXEdit(null); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
-              className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 focus-visible:outline-2 focus-visible:outline-blue-600"
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-slate-500">Y (pt)</span>
-            <input
-              type="number"
-              data-testid="pp-y"
-              aria-label="Y position"
-              value={yInput}
-              disabled={locked}
-              onFocus={() => setYEdit(String(displayXY.y))}
-              onChange={(e) => setYEdit(e.target.value)}
-              onBlur={() => { commitPosition(xInput, yInput); setYEdit(null); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
-              className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 focus-visible:outline-2 focus-visible:outline-blue-600"
-            />
-          </label>
-        </div>
-        <p className="mt-1 text-[10px] text-slate-400">Display coordinates, top-left origin. Page height: {Math.round(pageH)} pt</p>
+        <textarea
+          data-testid="text-editor-textarea"
+          aria-label="Edit text"
+          value={text}
+          onChange={(e) => onTextChange(e.target.value)}
+          disabled={locked}
+          rows={5}
+          className="w-full resize-none rounded border border-slate-300 px-2 py-1.5 text-xs leading-relaxed focus-visible:outline-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:bg-slate-100"
+        />
+        {locked && (
+          <p className="mt-1 text-[10px] text-amber-600">This object cannot be edited.</p>
+        )}
       </section>
 
-      {!locked && (
-        <section aria-labelledby="pp-style">
-          <h2 id="pp-style" className="mb-1.5 font-semibold text-slate-500 uppercase tracking-wide" style={{ fontSize: '10px' }}>
-            Style
-          </h2>
-          <StyleControls style={line.currentStyle} onChange={onStyleChange} />
-        </section>
-      )}
-
       {rf && (
-        <section aria-labelledby="pp-font">
-          <h2 id="pp-font" className="mb-1 font-semibold text-slate-500 uppercase tracking-wide" style={{ fontSize: '10px' }}>
+        <section aria-labelledby="tep-font">
+          <h2 id="tep-font" className="mb-1 font-semibold text-slate-500 uppercase tracking-wide" style={{ fontSize: '10px' }}>
             Font
           </h2>
           <p data-testid="pp-font-tier" title={rf.reason} className="leading-snug">
@@ -318,10 +262,9 @@ export function PropertiesPanel({ line, geometry, onMove, onStyleChange }: Prope
         </section>
       )}
 
-      {/* Warnings */}
       {(moved || undrawableChars.length > 0) && (
-        <section aria-labelledby="pp-warnings">
-          <h2 id="pp-warnings" className="mb-1 font-semibold text-slate-500 uppercase tracking-wide" style={{ fontSize: '10px' }}>
+        <section aria-labelledby="tep-warnings">
+          <h2 id="tep-warnings" className="mb-1 font-semibold text-slate-500 uppercase tracking-wide" style={{ fontSize: '10px' }}>
             Warnings
           </h2>
           {moved && hasNonUniformBackground(line) && (
