@@ -18,6 +18,7 @@ import { StyleControls } from './components/StyleControls';
 import { TextObjectsTab } from './components/TextObjectsTab';
 import { ThumbnailsTab } from './components/ThumbnailsTab';
 import { ImageLayer } from './components/ImageLayer';
+import { ImagePreviewLayer } from './components/ImagePreviewLayer';
 import { ImagesTab } from './components/ImagesTab';
 import { TextOverlay } from './components/TextOverlay';
 import { UpdatePrompt } from './components/UpdatePrompt';
@@ -164,6 +165,9 @@ function PageOverlay({
       )}
       {model && (
         <PatchLayer lines={lines} geometry={geometry} zoom={zoom} />
+      )}
+      {model && images.length > 0 && (
+        <ImagePreviewLayer images={images} geometry={geometry} zoom={zoom} />
       )}
       {model && (
         <TextOverlay
