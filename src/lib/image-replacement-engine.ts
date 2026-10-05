@@ -81,6 +81,18 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
+/**
+ * In-memory object URL cache: blobKey → objectURL.
+ * Populated immediately when a blob is stored, so preview components can
+ * read the URL synchronously without an IndexedDB round-trip.
+ */
+const objectUrlCache = new Map<string, string>();
+
+/** Return the cached object URL for a blobKey, or null if not yet stored. */
+export function getCachedObjectUrl(blobKey: string): string | null {
+  return objectUrlCache.get(blobKey) ?? null;
+}
+
 /** Retrieve a stored blob by its key. Returns null if not found. */
 export async function loadBlob(blobKey: string): Promise<Blob | null> {
   const db = await openDb();
@@ -127,5 +139,6 @@ export async function storeBlob(file: File): Promise<string> {
   }
 
   await putBlob(key, blob);
+  objectUrlCache.set(key, URL.createObjectURL(blob));
   return key;
 }
