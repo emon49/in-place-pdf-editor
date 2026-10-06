@@ -19,11 +19,6 @@ A PDF editor that runs entirely in your browser. Click any text or image on a pa
 | PDF export | `pdf-lib` + `@pdf-lib/fontkit` |
 | State | Zustand |
 | Build | Vite 8 |
-| Unit tests | Vitest + Testing Library |
-| E2E tests | Playwright |
-| Linting | ESLint (flat config) + `eslint-plugin-jsx-a11y` |
-| Offline / PWA | `vite-plugin-pwa` |
-| Local persistence | IndexedDB (autosave) |
 
 ## Prerequisites
 
@@ -128,14 +123,3 @@ See `docs/adr/` for the decisions behind this design and `docs/PRD.md` for the d
 ## Known Limitations
 
 PDFs come in endless varieties — from Word, LaTeX, design tools, scanners and more — and we have not been able to try every kind. On some files the editor may behave in ways that feel unnatural, such as an edited line looking slightly different from its neighbours or text not lining up perfectly. If you run into anything like that, we would love to hear about it: please email **rafiemon71@gmail.com** with a short description and, if you can, a sample PDF that shows the problem (please remove any personal information first).
-
-Other things to know:
-
-- Hidden text is covered, not deleted: it disappears visually but remains inside the PDF file, so this is not secure redaction.
-- Edits apply one line at a time; the rest of a paragraph does not reflow around a longer or shorter line.
-- If the PDF does not contain the exact font for a letter you type, a close look-alike is used instead of the exact face.
-- Only Latin, Greek and Cyrillic scripts are supported (no right-to-left or complex scripts).
-- Rotated or slanted text, such as diagonal watermarks, can be viewed but not edited.
-- Password-protected PDFs cannot be opened.
-- One object can be selected at a time.
-- Phones and tablets are not yet a target.
