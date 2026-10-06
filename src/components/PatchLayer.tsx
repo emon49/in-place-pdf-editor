@@ -3,6 +3,7 @@ import { pageToScreen, type PageGeometry } from '../lib/coordinates';
 import { lookupCatalog } from '../lib/font-catalog';
 import { fetchCatalogFont } from '../lib/font-fetcher';
 import { patchFont, resolveFontSync } from '../lib/font-resolver';
+import { PatchText } from './PatchText';
 import type { LayoutLine, PreviewLine } from '../types/operations';
 
 interface PatchLayerProps {
@@ -66,6 +67,9 @@ export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
         const rf = line.resolvedFont ?? resolveFontSync({ ...line, fontFamilyOverride: style.fontFamilyOverride }, line.currentText);
         const fontSize = style.size * zoom;
         const lineHeightPx = style.size * style.lineHeight * zoom;
+        // Baseline relative to the box corner, as the PDF set it; added text has no original, so estimate.
+        const rise = line.origin.y - line.box.y;
+        const baselineShift = { x: line.origin.x - line.box.x, y: rise > 0 ? rise : style.size * 0.2 };
 
         // Detect if this patch overlaps any other (non-deleted) object's original box (TE-6)
         const bounds = patchBounds(layout);
@@ -82,32 +86,24 @@ export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
             style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
           >
             {layout.map((layoutLine, i) => {
-              // Each LayoutLine has a page-space origin (x, y). Convert to screen.
-              const screenPt = pageToScreen(geometry, { x: layoutLine.x, y: layoutLine.y }, zoom);
+              // Layout rows start at the box corner; the glyphs sit on the original baseline.
+              const at = pageToScreen(geometry, { x: layoutLine.x + baselineShift.x, y: layoutLine.y + baselineShift.y }, zoom);
               const drawn = patchFont(rf, line.font, line.fontClass, layoutLine.text);
-              // The y returned by pageToScreen is the top-left in screen space (PDF y=bottom).
-              // We need to offset upward by the full line height so baseline aligns correctly.
               return (
-                <span
+                <PatchText
                   key={i}
-                  data-testid="patch-line"
-                  style={{
-                    position: 'absolute',
-                    left: screenPt.x,
-                    top: screenPt.y - lineHeightPx,
-                    fontFamily: drawn.fontFamily,
-                    fontSize: `${fontSize}px`,
-                    fontWeight: style.bold ? 'bold' : 'normal',
-                    fontStyle: style.italic ? 'italic' : 'normal',
-                    color: style.color,
-                    letterSpacing: `${style.charSpacing * zoom}px`,
-                    lineHeight: `${lineHeightPx}px`,
-                    wordSpacing: `${style.wordSpacing * zoom}px`,
-                    whiteSpace: 'pre',
-                  }}
-                >
-                  {drawn.text}
-                </span>
+                  text={drawn.text}
+                  fontFamily={drawn.fontFamily}
+                  bold={style.bold}
+                  italic={style.italic}
+                  fontSizePx={fontSize}
+                  color={style.color}
+                  letterSpacingPx={style.charSpacing * zoom}
+                  wordSpacingPx={style.wordSpacing * zoom}
+                  hScale={style.hScale / 100}
+                  left={at.x}
+                  baseline={at.y}
+                />
               );
             })}
             {hasOverlap && (

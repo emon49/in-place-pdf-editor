@@ -26,6 +26,7 @@ function line(i: number, text: string, y: number, extra: Partial<TextLine> = {})
     italic: false,
     fontSize: 12,
     box: { x: 72, y, width: 120, height: 14 },
+    origin: { x: 72, y: y + 3 },
     color: { hex: '#1F293B', source: 'exact' },
     background: { status: 'ready', color: '#FFFFFF', uniform: true, ratio: 1 },
     lockReason: null,
@@ -208,9 +209,9 @@ describe('text editing operations (7.x)', () => {
     render(<App />);
     fireEvent.click((await screen.findAllByTestId('text-box'))[0] as HTMLElement);
     fireEvent.change(await screen.findByTestId('text-editor-textarea'), { target: { value: 'Edited' } });
-    const span = (await screen.findAllByTestId('patch-line'))[0] as HTMLElement;
-    expect(span.style.fontFamily).toContain('Liberation Sans');
-    expect(span.style.fontFamily).toContain('sans-serif');
+    const row = (await screen.findAllByTestId('patch-line'))[0] as HTMLElement;
+    expect(row.dataset.fontFamily).toContain('Liberation Sans');
+    expect(row.dataset.fontFamily).toContain('sans-serif');
   });
 
   it('changed text pushes TEXT_REPLACE; unchanged text pushes no op (7.1)', async () => {

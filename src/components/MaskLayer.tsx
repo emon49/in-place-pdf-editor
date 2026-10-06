@@ -1,4 +1,5 @@
 import { displayRectToScreen, pageRectToDisplay, type PageGeometry } from '../lib/coordinates';
+import { maskRect } from '../lib/mask-geometry';
 import type { PreviewLine } from '../types/operations';
 
 interface MaskLayerProps {
@@ -27,7 +28,7 @@ export function MaskLayer({ lines, geometry, zoom }: MaskLayerProps) {
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden="true">
       {masked.map((line) => {
-        const rect = displayRectToScreen(pageRectToDisplay(geometry, line.box), zoom);
+        const rect = displayRectToScreen(pageRectToDisplay(geometry, maskRect(line.box, line.origin, line.fontSize)), zoom);
         const color =
           line.background.status === 'ready' ? line.background.color : '#ffffff';
         return (

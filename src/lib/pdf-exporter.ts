@@ -103,6 +103,7 @@ function buildExportPage(
     text: pl.text,
     currentText: pl.currentText,
     box: pl.box,
+    origin: pl.origin,
     currentBox: pl.currentBox,
     deleted: pl.deleted,
     fontSize: pl.fontSize,

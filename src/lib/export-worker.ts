@@ -24,10 +24,11 @@ import {
   type PDFPage,
 } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import type { Rect } from './coordinates';
+import type { Point, Rect } from './coordinates';
 import type { TextStyle, ResolvedFont, FitMode } from '../types/operations';
 import { encodeText } from './font-encoder';
 import { fitImageRect } from './image-replacement-engine';
+import { maskRect } from './mask-geometry';
 import { calibratedAdvance, layoutText, type LayoutLine } from './text-layout';
 
 // ─── Payload types ────────────────────────────────────────────────────────────
@@ -38,6 +39,8 @@ export interface ExportTextLine {
   /** Text after applying operations (same as `text` if unchanged). */
   readonly currentText: string;
   readonly box: Rect;
+  /** Baseline origin of the original line, for the mask rect. */
+  readonly origin: Point;
   readonly currentBox: Rect;
   readonly deleted: boolean;
   readonly fontSize: number;
@@ -156,7 +159,7 @@ async function exportPdf(
 
       // Mask at Position A (original position).
       if (!line.isAdded) {
-        coverOriginalPosition(page, line.box, line.maskColor ?? '#ffffff');
+        coverOriginalPosition(page, maskRect(line.box, line.origin, line.fontSize), line.maskColor ?? '#ffffff');
       }
 
       // Draw patch at Position B if not deleted.
