@@ -62,6 +62,34 @@ export function calibratedAdvance(sample: WidthSample | null): AdvanceFn {
   return (_ch, style) => glyphAdvance(style) * scale + style.charSpacing;
 }
 
+// A line's lineHeight is its glyph extent (ascent − descent), often < 1 em; rows need real leading.
+const MIN_LEADING = 1.2;
+
+/** Baseline-to-baseline distance (pt) between wrapped or Shift+Enter rows. */
+export function rowStep(style: TextStyle): number {
+  return style.size * Math.max(style.lineHeight, MIN_LEADING);
+}
+
+/** A line's position as layout needs it: where it is now (`currentBox`) and where its baseline sits in it. */
+export interface PatchAnchor {
+  readonly box: OriginBox;
+  readonly currentBox: OriginBox;
+  readonly origin: { readonly x: number; readonly y: number };
+}
+
+/**
+ * Layout origin whose `y` is the first row's baseline at the line's current position, so rows from
+ * `layoutText` are baselines. Preview and export both lay out from it.
+ */
+export function patchOrigin(line: PatchAnchor): OriginBox {
+  return {
+    x: line.currentBox.x + (line.origin.x - line.box.x),
+    y: line.currentBox.y + (line.origin.y - line.box.y),
+    width: line.currentBox.width,
+    height: line.currentBox.height,
+  };
+}
+
 /**
  * Lay out `text` starting at `originBox`, wrapping at `pageWidth − 40 pt`.
  *
@@ -77,7 +105,7 @@ export function layoutText(
 ): LayoutResult {
   const wrapMargin = pageWidth - 40;
   const maxWidth = Math.max(0, wrapMargin - originBox.x);
-  const lineStep = style.size * style.lineHeight;
+  const lineStep = rowStep(style);
 
   const lines: LayoutLine[] = [];
   const paragraphs = text.split('\n');

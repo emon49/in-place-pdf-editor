@@ -23,7 +23,9 @@ import { ImagesTab } from './components/ImagesTab';
 import { TextOverlay } from './components/TextOverlay';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { createOperation } from './lib/create-operation';
-import { calibratedAdvance, layoutText } from './lib/text-layout';
+import { calibratedAdvance, layoutText, patchOrigin } from './lib/text-layout';
+import { patchFont, resolveFontSync } from './lib/font-resolver';
+import type { FontFacts } from './types/page-model';
 import { styleFromLine, withResolvedFont } from './lib/operation-reducer';
 import type { FitMode as ImageFitMode, ObjectDeleteOp, PreviewLine, RevertOp, TextAddOp, TextReplaceOp, TextStyle, TextStyleChangeOp } from './types/operations';
 import { NOTICE_MESSAGES } from './lib/document-notice';
@@ -50,6 +52,15 @@ const DEFAULT_ADD_TEXT_STYLE: TextStyle = {
   rise: 0,
   renderMode: 0,
 };
+
+const MAX_ADD_TEXT_SIZE = 24;
+const NO_FONT_FACTS: FontFacts = { rawName: '', subtype: null, embedding: null, licence: null, encoding: null, coverage: null };
+
+/** The font stack added text will be drawn with, resolved as the committed line will be. */
+function addTextFontFamily(style: TextStyle): string {
+  const input = { font: NO_FONT_FACTS, fontRef: '', family: style.fontFamilyOverride ?? '', fontClass: style.fontClass, fontFamilyOverride: style.fontFamilyOverride };
+  return patchFont(resolveFontSync(input, 'x'), NO_FONT_FACTS, style.fontClass, '').fontFamily;
+}
 
 /** Layer 2 + Layer 3 + Layer 4 for the page the viewer has loaded. */
 function PageOverlay({
@@ -92,64 +103,34 @@ function PageOverlay({
     if (line.deleted) return line;
     const isDraftTarget = draftOverride !== undefined && draftOverride.id === line.id;
     const effectiveText = isDraftTarget ? draftOverride.text : line.currentText;
+    const isAdded = line.id.startsWith('add-');
     const moved = line.currentBox.x !== line.box.x || line.currentBox.y !== line.box.y;
     const textChanged = effectiveText !== line.text;
-    if (textChanged || moved) {
+    if (isAdded || textChanged || moved) {
       // Force patchLayout recompute from effectiveText (handles live draft preview).
-      const layoutBox = moved ? line.currentBox : line.box;
-      const sample = line.id.startsWith('add-') ? null : { text: line.text, width: line.box.width, style: styleFromLine(line) };
-      const { lines: pl } = layoutText(effectiveText, line.currentStyle, layoutBox, pageWidth, calibratedAdvance(sample));
-      return withResolvedFont({ ...line, currentText: effectiveText, patchLayout: pl }, line.id.startsWith('add-'));
+      const sample = isAdded ? null : { text: line.text, width: line.box.width, style: styleFromLine(line) };
+      const { lines: pl } = layoutText(effectiveText, line.currentStyle, patchOrigin(line), pageWidth, calibratedAdvance(sample));
+      const laidOut = { ...line, currentText: effectiveText, patchLayout: pl };
+      if (!isAdded) return withResolvedFont(laidOut, false);
+      // Added text has no measured box: size its hit box to the widest laid-out row.
+      const width = Math.max(line.currentStyle.size, ...pl.map((row) => row.width));
+      return withResolvedFont({ ...laidOut, box: { ...line.box, width }, currentBox: { ...line.currentBox, width } }, true);
     }
     return isDraftTarget ? { ...line, currentText: effectiveText } : line;
   });
 
-  // Infer style from the nearest non-deleted TextLine above the add-text point
+  // New text takes the style of the nearest editable line above the click (body text, not a
+  // locked watermark), capped to a text size; otherwise the default style.
   const addTextStyle = (() => {
     if (!addTextPos || !model) return DEFAULT_ADD_TEXT_STYLE;
     const pt = addTextPos.point;
-    const above = lines
-      .filter((l) => !l.deleted && l.box.y <= pt.y)
-      .sort((a, b) => b.box.y - a.box.y);
-    const nearest = above[0];
+    const nearest = lines
+      .filter((l) => !l.deleted && l.lockReason === null && l.origin.y >= pt.y)
+      .sort((a, b) => a.origin.y - b.origin.y)[0];
     if (!nearest) return DEFAULT_ADD_TEXT_STYLE;
-    return nearest.currentStyle;
+    return { ...nearest.currentStyle, size: Math.min(nearest.currentStyle.size, MAX_ADD_TEXT_SIZE) };
   })();
-
-  // Synthetic PreviewLine for the add-text editor
-  const addTextLine = addTextPos
-    ? ({
-        id: '__add_text__',
-        pageIndex,
-        text: '',
-        origin: addTextPos.point,
-        box: { x: addTextPos.point.x, y: addTextPos.point.y, width: 200, height: addTextStyle.size * 1.2 },
-        currentBox: { x: addTextPos.point.x, y: addTextPos.point.y, width: 200, height: addTextStyle.size * 1.2 },
-        matrix: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number],
-        fontRef: '',
-        family: addTextStyle.fontFamilyOverride ?? 'Liberation Sans',
-        subsetPrefix: null,
-        fontClass: addTextStyle.fontClass,
-        bold: addTextStyle.bold,
-        italic: addTextStyle.italic,
-        fontSize: addTextStyle.size,
-        hScale: addTextStyle.hScale,
-        charSpacing: addTextStyle.charSpacing,
-        wordSpacing: addTextStyle.wordSpacing,
-        rise: addTextStyle.rise,
-        renderMode: addTextStyle.renderMode,
-        lineHeight: addTextStyle.lineHeight,
-        color: { hex: addTextStyle.color, source: 'exact' as const },
-        background: { status: 'pending' as const },
-        lockReason: null,
-        font: { rawName: 'Liberation Sans', subtype: null, embedding: null, licence: null, encoding: null, coverage: null },
-        currentText: '',
-        currentStyle: addTextStyle,
-        deleted: false,
-        patchLayout: null,
-        resolvedFont: null,
-      } as PreviewLine)
-    : null;
+  const addTextFont = addTextFontFamily(addTextStyle);
 
   return (
     <>
@@ -194,9 +175,12 @@ function PageOverlay({
           onReplace={onImageReplace}
         />
       )}
-      {addTextLine && (
+      {addTextPos && (
         <InlineTextEditor
-          line={addTextLine}
+          key={`${addTextPos.point.x},${addTextPos.point.y}`}
+          point={addTextPos.point}
+          style={addTextStyle}
+          fontFamily={addTextFont}
           zoom={zoom}
           pageGeometry={geometry}
           onCommit={(text) => onCommitAddText(text, addTextStyle)}
@@ -309,7 +293,8 @@ export function App() {
         type: 'TEXT_ADD',
         objectId: `add-${Date.now().toString(36)}`,
         text,
-        at: addTextPos.point,
+        // The click is the text's top-left; `at` is its first baseline.
+        at: { x: addTextPos.point.x, y: addTextPos.point.y - style.size * 0.8 },
         style,
         pageIndex: s.view.pageIndex,
       }),

@@ -1,92 +1,86 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { pageRectToDisplay, displayRectToScreen, type PageGeometry } from '../lib/coordinates';
-import type { PreviewLine } from '../types/operations';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { pageToScreen, type PageGeometry, type Point } from '../lib/coordinates';
+import { rowStep } from '../lib/text-layout';
+import type { TextStyle } from '../types/operations';
 
 export interface InlineTextEditorProps {
-  line: PreviewLine;
+  /** Top-left of the new text in Page Space (where the user clicked). */
+  point: Point;
+  style: TextStyle;
+  /** CSS font stack the committed text will be drawn with. */
+  fontFamily: string;
   zoom: number;
   pageGeometry: PageGeometry;
   onCommit: (text: string) => void;
   onCancel: () => void;
 }
 
-/**
- * Check whether all characters in text fall within the Liberation font's
- * guaranteed coverage: Basic Latin, Latin Extended (A–B), Greek, Cyrillic.
- * Returns the first undrawable character or null if all pass.
- */
+// Right-hand wrap limit (pageWidth − 40 pt), as in text layout.
+const WRAP_INSET_PT = 40;
+const PAD_PX = 4;
+
+/** Guaranteed coverage (Latin, Latin Extended, Greek, Cyrillic); returns the first character outside it. */
 function firstUndrawableChar(text: string): string | null {
   for (const ch of text) {
+    if (ch === '\n') continue;
     const cp = ch.codePointAt(0) ?? 0;
-    const ok =
-      (cp >= 0x0020 && cp <= 0x024f) || // Basic Latin + Latin Extended A/B
-      (cp >= 0x0370 && cp <= 0x03ff) || // Greek and Coptic
-      (cp >= 0x0400 && cp <= 0x04ff); // Cyrillic
+    const ok = (cp >= 0x0020 && cp <= 0x024f) || (cp >= 0x0370 && cp <= 0x03ff) || (cp >= 0x0400 && cp <= 0x04ff);
     if (!ok) return ch;
   }
   return null;
 }
 
 /**
- * Layer 4: a textarea positioned over the Text Line using pageRectToDisplay × zoom.
- * Styled to match the line's resolved font family, size, letter-spacing, line-height and color.
- * Auto-expands vertically as the user types.
+ * Layer 4: the Add Text editor. A visible box whose top-left is the click point, typed in the font,
+ * size and colour the text will be drawn with. It grows with its content up to the page's wrap
+ * limit. Enter or clicking elsewhere commits; Shift+Enter adds a line; Escape cancels.
  */
-export function InlineTextEditor({ line, zoom, pageGeometry, onCommit, onCancel }: InlineTextEditorProps) {
-  const [value, setValue] = useState(line.currentText);
-  const [undrawableChar, setUndrawableChar] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const committedRef = useRef(false);
-  const drawCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+export function InlineTextEditor({ point, style, fontFamily, zoom, pageGeometry, onCommit, onCancel }: InlineTextEditorProps) {
+  const [value, setValue] = useState('');
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const doneRef = useRef(false);
+  const undrawable = firstUndrawableChar(value);
 
-  const displayRect = pageRectToDisplay(pageGeometry, line.box);
-  const screenRect = displayRectToScreen(displayRect, zoom);
+  const topLeft = pageToScreen(pageGeometry, point, zoom);
+  const wrapRight = pageToScreen(pageGeometry, { x: pageGeometry.box[2] - WRAP_INSET_PT, y: point.y }, zoom).x;
+  const fontSize = style.size * zoom;
+  const lineHeightPx = rowStep(style) * zoom;
+  const font = `${style.italic ? 'italic' : 'normal'} ${style.bold ? 'bold' : 'normal'} ${fontSize}px ${fontFamily}`;
+  const maxWidth = Math.max(fontSize * 4, wrapRight - topLeft.x);
 
-  // Derive CSS font family from resolved font
-  const cssFamily = (() => {
-    const rf = line.resolvedFont;
-    if (!rf) return 'Liberation Sans, sans-serif';
-    if (rf.tier === 1) return 'inherit'; // use whatever the browser has from the PDF
-    return `${rf.cssFamily}, sans-serif`;
-  })();
-
-  const style = line.currentStyle;
-
-  // Debounced drawability check (200 ms) on each text change
-  const scheduleDrawCheck = useCallback((text: string) => {
-    if (drawCheckTimer.current) clearTimeout(drawCheckTimer.current);
-    drawCheckTimer.current = setTimeout(() => {
-      setUndrawableChar(firstUndrawableChar(text));
-    }, 200);
+  useEffect(() => {
+    ref.current?.focus();
   }, []);
 
-  // Auto-resize textarea to content height
-  useEffect(() => {
-    const el = textareaRef.current;
+  // Fit width to the longest typed line (min ~8 em, max the wrap limit), then height to the content.
+  useLayoutEffect(() => {
+    const el = ref.current;
     if (!el) return;
+    const ctx = document.createElement('canvas').getContext('2d');
+    let textWidth = 0;
+    if (ctx) {
+      ctx.font = font;
+      ctx.letterSpacing = `${style.charSpacing * zoom}px`;
+      for (const row of value.split('\n')) textWidth = Math.max(textWidth, ctx.measureText(row).width);
+    }
+    el.style.width = `${Math.min(maxWidth, Math.max(fontSize * 8, textWidth + fontSize) + PAD_PX * 2)}px`;
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
-  });
-
-  useEffect(() => {
-    textareaRef.current?.focus();
-    textareaRef.current?.select();
-  }, []);
+  }, [value, font, maxWidth, fontSize, style.charSpacing, zoom]);
 
   const commit = () => {
-    if (committedRef.current) return;
-    if (undrawableChar !== null) return; // blocked by undrawable character
-    committedRef.current = true;
+    if (doneRef.current || undrawable !== null) return;
+    doneRef.current = true;
     onCommit(value);
   };
-
   const cancel = () => {
-    if (committedRef.current) return;
-    committedRef.current = true;
+    if (doneRef.current) return;
+    doneRef.current = true;
     onCancel();
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    e.stopPropagation(); // keep editor keys away from global shortcuts (Delete, Ctrl+Z…)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       commit();
@@ -94,72 +88,46 @@ export function InlineTextEditor({ line, zoom, pageGeometry, onCommit, onCancel 
       e.preventDefault();
       cancel();
     }
-    // Shift+Enter: let default newline insertion happen
   };
-
-  const fontSize = style.size * zoom;
-  const letterSpacing = style.charSpacing * zoom;
-  const lineHeightPx = style.size * style.lineHeight * zoom;
 
   return (
     <>
       <textarea
-        ref={textareaRef}
+        ref={ref}
         data-testid="inline-text-editor"
         value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          scheduleDrawCheck(e.target.value);
-        }}
+        placeholder="Type text…"
+        onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={commit}
+        onClick={(e) => e.stopPropagation()}
         rows={1}
-        aria-label={`Edit text: ${line.currentText}`}
-        aria-invalid={undrawableChar !== null}
+        wrap="soft"
+        aria-label="New text"
+        aria-invalid={undrawable !== null}
+        className={`absolute z-40 resize-none overflow-hidden rounded-sm bg-white shadow-md outline-none ring-2 placeholder:text-slate-400 ${
+          undrawable !== null ? 'ring-red-500' : 'ring-blue-500'
+        }`}
         style={{
-          position: 'absolute',
-          left: screenRect.x,
-          top: screenRect.y,
-          width: screenRect.width,
-          minHeight: screenRect.height,
-          fontSize: `${fontSize}px`,
-          fontFamily: cssFamily,
-          fontWeight: style.bold ? 'bold' : 'normal',
-          fontStyle: style.italic ? 'italic' : 'normal',
+          left: topLeft.x - PAD_PX,
+          top: topLeft.y - PAD_PX,
+          padding: PAD_PX,
+          font,
           color: style.color,
-          letterSpacing: `${letterSpacing}px`,
-          lineHeight: `${lineHeightPx}px`,
+          letterSpacing: `${style.charSpacing * zoom}px`,
           wordSpacing: `${style.wordSpacing * zoom}px`,
-          background: 'transparent',
-          border: `1px solid ${undrawableChar !== null ? '#ef4444' : '#3b82f6'}`,
-          outline: 'none',
-          resize: 'none',
-          overflow: 'hidden',
-          padding: 0,
-          margin: 0,
+          lineHeight: `${lineHeightPx}px`,
           boxSizing: 'border-box',
-          zIndex: 40,
         }}
       />
-      {undrawableChar !== null && (
+      {undrawable !== null && (
         <div
           data-testid="drawability-warning"
           role="alert"
-          style={{
-            position: 'absolute',
-            left: screenRect.x,
-            top: screenRect.y + screenRect.height + 2,
-            background: '#fef2f2',
-            border: '1px solid #ef4444',
-            borderRadius: 4,
-            padding: '2px 6px',
-            fontSize: 11,
-            color: '#b91c1c',
-            zIndex: 41,
-            whiteSpace: 'nowrap',
-          }}
+          className="absolute z-40 whitespace-nowrap rounded border border-red-500 bg-red-50 px-1.5 py-0.5 text-[11px] text-red-700"
+          style={{ left: topLeft.x - PAD_PX, top: topLeft.y - PAD_PX - 22 }}
         >
-          {`Cannot draw character: "${undrawableChar}" (U+${undrawableChar.codePointAt(0)?.toString(16).toUpperCase().padStart(4, '0')})`}
+          {`Cannot draw character: "${undrawable}" (U+${undrawable.codePointAt(0)?.toString(16).toUpperCase().padStart(4, '0')})`}
         </div>
       )}
     </>

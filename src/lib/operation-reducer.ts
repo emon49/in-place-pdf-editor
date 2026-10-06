@@ -148,8 +148,9 @@ export function applyOperations(
           pageIndex: op.pageIndex,
           text: op.text,
           origin: op.at,
-          box: { x: op.at.x, y: op.at.y, width: 0, height: 0 },
-          currentBox: { x: op.at.x, y: op.at.y, width: 0, height: 0 },
+          // `at` is the first baseline; the box is the first row's glyph box (width set by the preview).
+          box: addedBox(op.at, op.style.size),
+          currentBox: addedBox(op.at, op.style.size),
           // matrix, fontRef, family, subsetPrefix, fontClass, bold, italic come from style
           matrix: [1, 0, 0, 1, op.at.x, op.at.y],
           fontRef: '',
@@ -209,6 +210,11 @@ export function applyOperations(
   }
 
   return result;
+}
+
+/** First-row glyph box of added text whose first baseline is `at`. */
+export function addedBox(at: { x: number; y: number }, size: number): { x: number; y: number; width: number; height: number } {
+  return { x: at.x, y: at.y - size * 0.25, width: 0, height: size * 1.05 };
 }
 
 /** Attach the Resolved Font to a line whose text is drawn as a patch (edited, moved or added). */

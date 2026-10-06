@@ -67,14 +67,12 @@ export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
         const rf = line.resolvedFont ?? resolveFontSync({ ...line, fontFamilyOverride: style.fontFamilyOverride }, line.currentText);
         const fontSize = style.size * zoom;
         const lineHeightPx = style.size * style.lineHeight * zoom;
-        // Baseline relative to the box corner, as the PDF set it; added text has no original, so estimate.
-        const rise = line.origin.y - line.box.y;
-        const baselineShift = { x: line.origin.x - line.box.x, y: rise > 0 ? rise : style.size * 0.2 };
 
         // Detect if this patch overlaps any other (non-deleted) object's original box (TE-6)
         const bounds = patchBounds(layout);
         const hasOverlap = bounds !== null && lines.some((other) => {
-          if (other.id === line.id || other.deleted) return false;
+          // A rotated (locked) line's level bounding box is far larger than its glyphs.
+          if (other.id === line.id || other.deleted || other.lockReason !== null) return false;
           return boxesOverlap(bounds, other.box);
         });
 
@@ -86,8 +84,8 @@ export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
             style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
           >
             {layout.map((layoutLine, i) => {
-              // Layout rows start at the box corner; the glyphs sit on the original baseline.
-              const at = pageToScreen(geometry, { x: layoutLine.x + baselineShift.x, y: layoutLine.y + baselineShift.y }, zoom);
+              // Layout rows are baselines (laid out from patchOrigin).
+              const at = pageToScreen(geometry, { x: layoutLine.x, y: layoutLine.y }, zoom);
               const drawn = patchFont(rf, line.font, line.fontClass, layoutLine.text);
               return (
                 <PatchText

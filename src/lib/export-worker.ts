@@ -29,7 +29,7 @@ import type { TextStyle, ResolvedFont, FitMode } from '../types/operations';
 import { encodeText } from './font-encoder';
 import { fitImageRect } from './image-replacement-engine';
 import { imageMaskRect, maskRect } from './mask-geometry';
-import { calibratedAdvance, layoutText, type LayoutLine } from './text-layout';
+import { calibratedAdvance, layoutText, patchOrigin, type LayoutLine } from './text-layout';
 
 // ─── Payload types ────────────────────────────────────────────────────────────
 
@@ -164,11 +164,10 @@ async function exportPdf(
 
       // Draw patch at Position B if not deleted.
       if (!line.deleted) {
-        const originBox = isMoved ? line.currentBox : line.box;
         const layoutLines = layoutText(
           line.currentText,
           line.currentStyle,
-          originBox,
+          patchOrigin(line),
           pageData.pageWidth,
           calibratedAdvance(line.isAdded ? null : { text: line.text, width: line.box.width, style: line.style }),
         ).lines;
