@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { getThumbnailPool } from '../lib/thumbnail-renderer';
+import { renderThumbnail } from '../lib/thumbnail-renderer';
+import { documentRegistry } from '../store/useEditor';
 
 export interface ThumbnailsTabProps {
   documentId: string;
@@ -14,7 +15,8 @@ interface ThumbnailState {
   loading: boolean;
 }
 
-const THUMB_WIDTH = 120;
+// Roughly the sidebar's thumbnail width; rendered at devicePixelRatio for sharpness.
+const THUMB_WIDTH = 180;
 
 /**
  * Scrollable thumbnail strip for the Sidebar (page-thumbnails spec, D2).
@@ -39,7 +41,6 @@ export function ThumbnailsTab({ documentId, pageCount, activePageIndex, onGoToPa
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return;
-    const pool = getThumbnailPool();
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -58,30 +59,17 @@ export function ThumbnailsTab({ documentId, pageCount, activePageIndex, onGoToPa
             return next;
           });
 
-          void pool
-            .render({ docId: documentId, pageIndex: idx, width: THUMB_WIDTH })
-            .then((result) => {
-              if (result.bitmap) {
-                const offscreen = new OffscreenCanvas(result.bitmap.width, result.bitmap.height);
-                const ctx = offscreen.getContext('2d');
-                ctx?.drawImage(result.bitmap, 0, 0);
-                result.bitmap.close();
-                void offscreen.convertToBlob().then((blob) => {
-                  const url = URL.createObjectURL(blob);
-                  urlsRef.current.push(url);
-                  setThumbs((prev) => {
-                    const next = [...prev];
-                    next[idx] = { url, loading: false };
-                    return next;
-                  });
-                });
-              } else {
-                setThumbs((prev) => {
-                  const next = [...prev];
-                  next[idx] = { url: null, loading: false };
-                  return next;
-                });
-              }
+          const pdf = documentRegistry.get(documentId)?.pdf;
+          const rendered = pdf ? renderThumbnail(pdf, idx, THUMB_WIDTH) : Promise.resolve(null);
+          void rendered
+            .then((blob) => {
+              const url = blob ? URL.createObjectURL(blob) : null;
+              if (url) urlsRef.current.push(url);
+              setThumbs((prev) => {
+                const next = [...prev];
+                next[idx] = { url, loading: false };
+                return next;
+              });
             })
             .catch(() => {
               setThumbs((prev) => {
