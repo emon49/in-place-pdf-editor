@@ -1,21 +1,13 @@
 # Seamless PDF
 
-A 100% client-side, non-destructive WYSIWYG PDF editor that runs entirely in the browser. Click any text or image in a rendered PDF, edit it in place, and export a new PDF with the layout preserved — no uploads, no accounts, no server.
+A PDF editor that runs entirely in your browser. Click any text or image on a page, change it where it sits, and download a new PDF that still looks like the original — no uploads, no accounts, no server.
+
+**Try it:** https://emon49.github.io/seamlessPDF/
 
 ## Features
 
-- **In-place text editing** — click any text to select it, double-click to edit; font, size, color and spacing are preserved
-- **Move & resize** — drag text and images to reposition them; resize images with handles
-- **Add & delete** — insert new text objects or remove existing ones
-- **Image replacement** — swap embedded images while keeping their geometry
-- **Non-destructive edits** — changes are stored as an operation log; the original PDF is never mutated
-- **Undo / redo** — full history with per-item revert from the History sidebar
-- **Document search** — real-time case-insensitive search with highlighted matches and next/previous navigation
-- **Page thumbnails** — scrollable thumbnail strip for quick page navigation
-- **Color palette presets** — colors extracted from the document surface as one-click swatches
-- **Keyboard shortcuts** — full keyboard support with an in-app shortcuts reference modal
-- **Offline support** — works without a network connection after the first visit (PWA)
-- **Privacy first** — documents never leave your device; the only optional network request is a consented Google Fonts download
+- **In-place text editing** — Spotted a typo or an outdated date? Click the line and type the correction in the side panel; you see the change on the page as you type. Seamless PDF keeps the line's font, size, colour and spacing, so the edit blends into the page instead of looking pasted on.
+- **Image replacement** — Swap a logo, photo or signature for one of your own. The new image takes the old one's place and size, and you choose whether it should fit inside the frame, fill it, or stretch to it.
 
 ## Tech Stack
 
@@ -43,8 +35,8 @@ A 100% client-side, non-destructive WYSIWYG PDF editor that runs entirely in the
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/emon49/in-place-pdf-editor.git
-cd in-place-pdf-editor
+git clone https://github.com/emon49/seamlessPDF.git
+cd seamlessPDF
 ```
 
 ### 2. Install dependencies
@@ -59,51 +51,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser. The app hot-reloads on file changes.
-
-## Available Scripts
-
-| Command | Description |
-|---|---|
-| `npm run dev` | Start the Vite development server with HMR |
-| `npm run build` | Type-check then produce a production build in `dist/` |
-| `npm run preview` | Serve the production build locally (used by E2E tests) |
-| `npm run typecheck` | Run `tsc --noEmit` without emitting files |
-| `npm run lint` | Run ESLint across the whole project |
-| `npm run test` | Run all unit tests with Vitest |
-| `npm run test:watch` | Run unit tests in watch mode |
-| `npm run test:e2e` | Build then run Playwright E2E tests |
-| `npm run fixtures` | Regenerate test PDF fixtures (requires `qpdf`) |
-
-## Running Tests
-
-### Unit tests
-
-```bash
-npm run test
-```
-
-Tests live in `tests/unit/`. They run in a jsdom environment via Vitest.
-
-### End-to-end tests
-
-```bash
-npm run test:e2e
-```
-
-Playwright builds the app, serves it via `vite preview` (with the real Content-Security-Policy and service worker), then runs tests in `tests/e2e/` against Chromium, Firefox, and WebKit.
-
-To run only the cross-browser smoke suite:
-
-```bash
-npx playwright test --project=smoke-firefox --project=smoke-webkit
-```
-
-### Type-check and lint
-
-```bash
-npm run typecheck && npm run lint
-```
+Open [http://localhost:5173](http://localhost:5173) in your browser. The app reloads as you change files.
 
 ## Project Structure
 
@@ -113,6 +61,7 @@ src/
   store/            Zustand stores (editorStore, useEditor, usePageModel)
   lib/              Pure logic: coordinate helpers, extractors, renderers, exporters
   types/            Shared TypeScript types (PageModel, TextLine, EditOperation, …)
+public/fonts/       Self-hosted open fonts used when the original font can't draw an edit
 tests/
   unit/             Vitest unit tests (components, lib, store)
   integration/      Node-side PDF.js extraction tests
@@ -120,53 +69,73 @@ tests/
   fixtures/         Sample PDFs used by tests
 docs/
   PRD.md            Product requirements
-  adr/              Architecture Decision Records (ADR-0002 – ADR-0007)
+  adr/              Architecture Decision Records
   featurelist.md    Original complete feature specification
 csp.ts              Single Content-Security-Policy source (headers + meta tag)
-openspec/           OpenSpec planning artifacts (specs, changes, archive)
 ```
 
 ## Architecture Overview
 
-The editor stacks five layers over a single page coordinate space:
+Seamless PDF never changes your original file. Each edit you make is written down as a small instruction ("replace this line", "use this image here"). What you see on screen is the original page with those instructions applied on top, and the downloaded PDF is built from the same instructions. That is also why undo and redo are reliable: they just step back and forth through the list.
 
-| Layer | Responsibility |
-|---|---|
-| 0 — PDF.js canvas | High-DPI background render (offloaded to a Web Worker) |
-| 1 — Patches & masks | Whiteout original position; render edit at new position |
-| 2 — Text boxes | Interactive selection and move handles for text lines |
-| 3 — Image boxes | Interactive selection, move and resize handles for images |
-| 4 — Inline editor | Floating `<textarea>` for text editing |
+### What happens when you edit
 
-**Key design decisions:**
+```mermaid
+flowchart LR
+  A[Open a PDF] --> B[Page is drawn and every line and image is detected]
+  B --> C[You click a line or an image]
+  C --> D[Your change is saved as an instruction]
+  D --> E[Preview: hide the old content,<br/>draw the new content in its place]
+  D --> F[Export: apply the same instructions<br/>to a copy of the PDF]
+  E --> G[Undo / redo step through the instructions]
+```
 
-- **Non-destructive** — edits are `EditOperation` records (`TEXT_REPLACE`, `TEXT_STYLE_CHANGE`, `OBJECT_MOVE`, `OBJECT_DELETE`, `IMAGE_REPLACE`, `REVERT`, …) in an append-only log; the original PDF bytes are never mutated.
-- **Merged Text Line** — the editable unit is a line merged from raw PDF.js glyph runs (ADR-0002), not individual glyphs.
-- **Dual-location masking** — a moved or edited object masks its original position with a sampled background color and renders at its new position (ADR-0004).
-- **Font Resolution Chain** — edited text uses the embedded original font when possible, falling back through self-hosted open fonts, metric-compatible substitutes and Liberation (ADR-0007).
-- **Single coordinate helper** — PDF user space (origin bottom-left, points) is converted to screen pixels only at the render boundary via `src/lib/coordinates.ts`.
-- **Client-side only** — no backend; the only optional third-party request is a consented Google Fonts download carrying only a font family name (ADR-0005, ADR-0007).
+### How a page is built on screen
 
-See `docs/adr/` for the full decision log and `docs/PRD.md` for detailed requirements.
+The page you see is several see-through layers stacked on top of each other, all sharing the same position on the page:
+
+```mermaid
+flowchart BT
+  L0["Original page (drawn by PDF.js)"]
+  L1["Covers over changed content + your edited text"]
+  L2["Clickable boxes around each text line"]
+  L3["Clickable boxes around each image"]
+  L4["Box for typing new text"]
+  L0 --> L1 --> L2 --> L3 --> L4
+```
+
+### Keeping edits looking original
+
+When you change a line, Seamless PDF tries to draw it in the closest font it can, in this order:
+
+```mermaid
+flowchart TD
+  S[Edited line] --> T1{Can the PDF's own font<br/>draw every letter?}
+  T1 -- Yes --> R1[Use the original font]
+  T1 -- No --> T2{Is a matching open font<br/>bundled with the app?}
+  T2 -- Yes --> R2[Use it, e.g. Computer Modern for LaTeX papers]
+  T2 -- No --> T3{Is there a look-alike with<br/>the same letter widths?}
+  T3 -- Yes --> R3[Use it, e.g. Tinos for Times, Carlito for Calibri]
+  T3 -- No --> R4[Use a plain serif, sans or<br/>monospace font in the same style]
+```
+
+Bold and italic are kept at every step, and the preview and the downloaded PDF always use the same font.
+
+Everything happens on your device. Your document is never uploaded; the only optional outside request is downloading a Google Font, and only after you agree.
+
+See `docs/adr/` for the decisions behind this design and `docs/PRD.md` for the detailed requirements.
 
 ## Known Limitations
 
-- Whiteout hides text visually but does not remove it from the PDF stream; it is not secure redaction.
-- Edits are per Text Line; surrounding paragraph text does not reflow.
-- Commercial fonts that are not embedded export as metric-compatible substitutes.
-- Scripts beyond Latin, Latin Extended, Greek and Cyrillic are not supported (no RTL or complex shaping).
-- Encrypted / password-protected PDFs are blocked (ADR-0006).
-- Single-object selection only; no multi-select.
-- Mobile browsers are not a target for v1.
+PDFs come in endless varieties — from Word, LaTeX, design tools, scanners and more — and we have not been able to try every kind. On some files the editor may behave in ways that feel unnatural, such as an edited line looking slightly different from its neighbours or text not lining up perfectly. If you run into anything like that, we would love to hear about it: please email **rafiemon71@gmail.com** with a short description and, if you can, a sample PDF that shows the problem (please remove any personal information first).
 
-## Contributing
+Other things to know:
 
-1. Fork the repository and create a feature branch.
-2. Run `npm run typecheck && npm run lint && npm run test` before opening a pull request.
-3. Reference requirement IDs from `docs/PRD.md` (e.g. `MV-3`, `EX-2`) in commits and PR descriptions.
-4. Do not add dependencies without a short justification; prefer the existing stack.
-5. Do not commit sample PDFs containing real personal data.
-
-## License
-
-This project is private. All rights reserved.
+- Hidden text is covered, not deleted: it disappears visually but remains inside the PDF file, so this is not secure redaction.
+- Edits apply one line at a time; the rest of a paragraph does not reflow around a longer or shorter line.
+- If the PDF does not contain the exact font for a letter you type, a close look-alike is used instead of the exact face.
+- Only Latin, Greek and Cyrillic scripts are supported (no right-to-left or complex scripts).
+- Rotated or slanted text, such as diagonal watermarks, can be viewed but not edited.
+- Password-protected PDFs cannot be opened.
+- One object can be selected at a time.
+- Phones and tablets are not yet a target.
