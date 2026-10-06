@@ -28,7 +28,7 @@ import type { Point, Rect } from './coordinates';
 import type { TextStyle, ResolvedFont, FitMode } from '../types/operations';
 import { encodeText } from './font-encoder';
 import { fitImageRect } from './image-replacement-engine';
-import { maskRect } from './mask-geometry';
+import { imageMaskRect, maskRect } from './mask-geometry';
 import { calibratedAdvance, layoutText, type LayoutLine } from './text-layout';
 
 // ─── Payload types ────────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ async function exportPdf(
       if (!needsProcessing) continue;
 
       // Mask at Position A (original bounding box).
-      coverOriginalPosition(page, img.bbox, img.maskColor ?? '#ffffff');
+      coverOriginalPosition(page, imageMaskRect(img.bbox), img.maskColor ?? '#ffffff');
 
       // Draw replacement/moved image at Position B if not deleted.
       if (!img.deleted && isReplaced && img.blobKey) {

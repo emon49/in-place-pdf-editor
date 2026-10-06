@@ -16,3 +16,16 @@ export function maskRect(box: Rect, baseline: Point, fontSize: number): Rect {
   const side = fontSize * SIDE_EM;
   return { x: box.x - side, y: bottom, width: box.width + 2 * side, height: top - bottom };
 }
+
+// Covers the antialiased edge pixels a raster image leaves just outside its box.
+const IMAGE_PAD_PT = 0.75;
+
+/** Rect (Page Space) that hides an original image at Position A (ADR-0004); preview and export share it. */
+export function imageMaskRect(bbox: Rect): Rect {
+  return {
+    x: bbox.x - IMAGE_PAD_PT,
+    y: bbox.y - IMAGE_PAD_PT,
+    width: bbox.width + 2 * IMAGE_PAD_PT,
+    height: bbox.height + 2 * IMAGE_PAD_PT,
+  };
+}
