@@ -1,0 +1,46 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:Sans;src:url(../../public/fonts/LiberationSans-Regular.ttf)}
+@font-face{font-family:Sans;font-weight:700;src:url(../../public/fonts/LiberationSans-Bold.ttf)}
+@font-face{font-family:Doc;src:url(../../public/fonts/Tinos-Regular.ttf)}
+@font-face{font-family:Doc;font-weight:700;src:url(../../public/fonts/Tinos-Bold.ttf)}
+*{box-sizing:border-box;margin:0}
+body{width:1200px;height:630px;font-family:Sans;background:#0f172a;color:#f8fafc;overflow:hidden;position:relative}
+.glow{position:absolute;inset:0;background:radial-gradient(900px 500px at 85% 40%,rgba(37,99,235,.35),transparent 60%),radial-gradient(600px 400px at 0% 100%,rgba(37,99,235,.18),transparent 60%)}
+.left{position:absolute;left:72px;top:0;bottom:0;width:520px;display:flex;flex-direction:column;justify-content:center}
+.brand{display:flex;align-items:center;gap:16px;margin-bottom:34px}
+.brand svg{width:64px;height:64px}
+.brand span{font-size:30px;font-weight:700;letter-spacing:-.3px}
+h1{font-size:66px;line-height:1.05;font-weight:700;letter-spacing:-1.5px}
+h1 em{font-style:normal;color:#60a5fa}
+p.sub{margin-top:22px;font-size:25px;line-height:1.4;color:#cbd5e1}
+.chips{margin-top:34px;display:flex;gap:12px;flex-wrap:wrap}
+.chip{font-size:19px;padding:9px 16px;border-radius:999px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.3);color:#e2e8f0}
+.doc{position:absolute;right:64px;top:50%;margin-top:-218px;width:470px;background:#fff;border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.5);transform:rotate(2deg);padding:44px 44px;color:#1f293b;font-family:Doc}
+.doc h2{font-size:34px;font-weight:700;letter-spacing:.5px}
+.doc .meta{margin-top:6px;font-size:17px;color:#64748b}
+.doc .row{display:flex;justify-content:space-between;font-size:19px;padding:11px 0;border-bottom:1px solid #e2e8f0}
+.doc .rows{margin-top:34px}
+.doc .total{display:flex;justify-content:space-between;margin-top:22px;font-size:22px;font-weight:700}
+.doc .row.sel{position:relative;margin:30px -12px 0;padding:11px 12px;border-bottom:none;background:rgba(37,99,235,.08);outline:3px solid #2563eb;border-radius:2px}
+.h{position:absolute;width:12px;height:12px;background:#fff;border:2px solid #2563eb}
+.badge{position:absolute;right:-6px;top:-36px;font-family:Sans;font-size:15px;font-weight:700;color:#fff;background:#2563eb;padding:5px 12px;border-radius:6px;white-space:nowrap}
+.caret{display:inline-block;width:2px;height:21px;background:#2563eb;vertical-align:-4px;margin-left:1px}
+</style></head><body><div class="glow"></div>
+<div class="left">
+  <div class="brand"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#1e293b" stroke="#334155"/><path d="M20 12h17l11 11v29H20z" fill="#f8fafc"/><path d="M37 12v11h11" fill="#cbd5e1"/><rect x="25" y="31" width="18" height="3" rx="1.5" fill="#2563eb"/><rect x="25" y="38" width="14" height="3" rx="1.5" fill="#94a3b8"/></svg><span>Seamless PDF</span></div>
+  <h1>Fix any PDF<br><em>in place.</em></h1>
+  <p class="sub">Click a line, type the change. Same font, size and colour, so nobody can tell it was edited.</p>
+  <div class="chips"><span class="chip">Runs in your browser</span><span class="chip">Nothing uploaded</span><span class="chip">Free</span></div>
+</div>
+<div class="doc">
+  <h2>INVOICE</h2>
+  <div class="meta">No. INV-0001 · Example Co.</div>
+  <div class="rows">
+    <div class="row"><span>Design consultation</span><span>$510.00</span></div>
+    <div class="row sel"><span class="badge">Editing</span><span class="h" style="left:-7px;top:-7px"></span><span class="h" style="right:-7px;top:-7px"></span><span class="h" style="left:-7px;bottom:-7px"></span><span class="h" style="right:-7px;bottom:-7px"></span><span>Due: 15 June 2026<span class="caret"></span></span><span>Paid</span></div>
+    <div class="row"><span>Support plan, 12 months</span><span>$450.00</span></div>
+    <div class="row"><span>Placeholder widget</span><span>$360.00</span></div>
+  </div>
+  <div class="total"><span>Total</span><span>$1,320.00</span></div>
+</div>
+</body></html>

@@ -23,8 +23,41 @@ function cspPlugin(): Plugin {
   };
 }
 
+const TITLE = 'Seamless PDF';
+const DESCRIPTION = 'Fix any PDF in place: click a line, type the change, keep the same font, size and colour. Runs in your browser; nothing is uploaded.';
+
+/** Open Graph / Twitter tags. Link previews need absolute URLs, so they are built from the public site URL. */
+function socialMetaPlugin(siteUrl: string): Plugin {
+  const image = new URL('og-image.png', siteUrl).href;
+  const meta = (attr: 'property' | 'name', key: string, content: string) => ({
+    tag: 'meta',
+    attrs: { [attr]: key, content },
+    injectTo: 'head' as const,
+  });
+  return {
+    name: 'app-social-meta',
+    transformIndexHtml: () => [
+      meta('property', 'og:type', 'website'),
+      meta('property', 'og:site_name', TITLE),
+      meta('property', 'og:title', `${TITLE}: fix any PDF in place`),
+      meta('property', 'og:description', DESCRIPTION),
+      meta('property', 'og:url', siteUrl),
+      meta('property', 'og:image', image),
+      meta('property', 'og:image:width', '1200'),
+      meta('property', 'og:image:height', '630'),
+      meta('property', 'og:image:alt', 'Seamless PDF editing a line of an invoice in place'),
+      meta('name', 'twitter:card', 'summary_large_image'),
+      meta('name', 'twitter:title', `${TITLE}: fix any PDF in place`),
+      meta('name', 'twitter:description', DESCRIPTION),
+      meta('name', 'twitter:image', image),
+    ],
+  };
+}
+
 // Served from a subpath on GitHub Pages (`/<repo>/`); the deploy workflow sets BASE_PATH.
 const base = process.env.BASE_PATH ?? '/';
+// Public address of the site, for absolute link-preview URLs; the deploy workflow sets SITE_URL.
+const siteUrl = process.env.SITE_URL ?? 'https://emon49.github.io/seamlessPDF/';
 
 export default defineConfig({
   base,
@@ -32,6 +65,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     cspPlugin(),
+    socialMetaPlugin(siteUrl),
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
