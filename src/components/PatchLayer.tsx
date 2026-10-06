@@ -50,7 +50,13 @@ export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
         const layout = line.patchLayout as LayoutLine[];
         const style = line.currentStyle;
         const rf = line.resolvedFont;
-        const cssFamily = rf && rf.tier !== 1 ? `${rf.cssFamily}, sans-serif` : 'Liberation Sans, sans-serif';
+        // Include the original stripped family name as first choice so the browser uses the
+        // system font (e.g. "Times New Roman") when available — much closer visually to the
+        // embedded PDF font than the Liberation substitute alone.
+        const genericFamily = line.fontClass === 'serif' ? 'serif' : line.fontClass === 'mono' ? 'monospace' : 'sans-serif';
+        const resolvedCss = rf && rf.tier !== 1 ? rf.cssFamily : 'Liberation Sans';
+        const originalHint = line.family && line.family !== resolvedCss ? `'${line.family}', ` : '';
+        const cssFamily = `${originalHint}${resolvedCss}, ${genericFamily}`;
         const fontSize = style.size * zoom;
         const lineHeightPx = style.size * style.lineHeight * zoom;
 
