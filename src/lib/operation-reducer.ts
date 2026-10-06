@@ -89,7 +89,8 @@ export function applyOperations(
   );
 
   // Track added lines in insertion order.
-  const addedLines: PreviewLine[] = [];
+  // Added lines live in previewMap too, so later edits, moves, style changes and deletes apply to them.
+  const addedIds: string[] = [];
 
   for (const op of active) {
     if (cancelled.has(op.id)) continue;
@@ -141,8 +142,7 @@ export function applyOperations(
 
       case 'TEXT_ADD': {
         // Check if this objectId was already added by a prior TEXT_ADD.
-        const existing = addedLines.findIndex((l) => l.id === op.objectId);
-        if (existing !== -1) break; // idempotent if already added
+        if (previewMap.has(op.objectId)) break; // idempotent if already added
         const addedPreview: PreviewLine = {
           id: op.objectId,
           pageIndex: op.pageIndex,
@@ -183,7 +183,8 @@ export function applyOperations(
           patchLayout: null,
           resolvedFont: null,
         };
-        addedLines.push(addedPreview);
+        previewMap.set(op.objectId, addedPreview);
+        addedIds.push(op.objectId);
         break;
       }
 
@@ -204,9 +205,10 @@ export function applyOperations(
     const preview = previewMap.get(line.id);
     if (preview) result.push(withResolvedFont(preview, false));
   }
-  for (const added of addedLines) {
-    // If a TEXT_ADD was reverted, exclude the added line.
-    if (!added.deleted) result.push(withResolvedFont(added, true));
+  for (const id of addedIds) {
+    const added = previewMap.get(id);
+    // A deleted or reverted TEXT_ADD has nothing left to show.
+    if (added && !added.deleted) result.push(withResolvedFont(added, true));
   }
 
   return result;
@@ -217,10 +219,22 @@ export function addedBox(at: { x: number; y: number }, size: number): { x: numbe
   return { x: at.x, y: at.y - size * 0.25, width: 0, height: size * 1.05 };
 }
 
-/** Attach the Resolved Font to a line whose text is drawn as a patch (edited, moved or added). */
-export function withResolvedFont(line: PreviewLine, added: boolean): PreviewLine {
+/** True when any style property differs from the original (font, size, weight, colour, spacing…). */
+export function styleChanged(original: TextStyle, current: TextStyle): boolean {
+  return (Object.keys(original) as (keyof TextStyle)[]).some((k) => original[k] !== current[k]);
+}
+
+/** Whether a line is drawn as a patch: added, or its text, position or style was changed. */
+export function drawsPatch(line: PreviewLine): boolean {
+  if (line.deleted) return false;
+  if (line.id.startsWith('add-')) return true;
   const moved = line.currentBox.x !== line.box.x || line.currentBox.y !== line.box.y;
-  if (line.deleted || (!added && !moved && line.currentText === line.text)) return line;
+  return moved || line.currentText !== line.text || styleChanged(styleFromLine(line), line.currentStyle);
+}
+
+/** Attach the Resolved Font to a line whose text is drawn as a patch (edited, moved, restyled or added). */
+export function withResolvedFont(line: PreviewLine, added: boolean): PreviewLine {
+  if (!added && !drawsPatch(line)) return line;
   return {
     ...line,
     resolvedFont: resolveFontSync(

@@ -1,5 +1,6 @@
 import { displayRectToScreen, pageRectToDisplay, type PageGeometry } from '../lib/coordinates';
 import { maskRect } from '../lib/mask-geometry';
+import { drawsPatch } from '../lib/operation-reducer';
 import type { PreviewLine } from '../types/operations';
 
 interface MaskLayerProps {
@@ -15,13 +16,8 @@ interface MaskLayerProps {
  * Added lines (TEXT_ADD) have no original position and receive no mask.
  */
 export function MaskLayer({ lines, geometry, zoom }: MaskLayerProps) {
-  const masked = lines.filter((l) => {
-    // Mask applies to lines that existed in the original document and have been
-    // modified (currentText differs from text), moved, or deleted.
-    const isOriginal = !l.id.startsWith('add-');
-    const moved = l.currentBox.x !== l.box.x || l.currentBox.y !== l.box.y;
-    return isOriginal && (l.deleted || l.currentText !== l.text || moved);
-  });
+  // Original lines that were deleted or are redrawn as a patch (edited, moved or restyled).
+  const masked = lines.filter((l) => !l.id.startsWith('add-') && (l.deleted || drawsPatch(l)));
 
   if (masked.length === 0) return null;
 

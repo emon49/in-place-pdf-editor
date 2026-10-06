@@ -26,7 +26,7 @@ import { createOperation } from './lib/create-operation';
 import { calibratedAdvance, layoutText, patchOrigin } from './lib/text-layout';
 import { patchFont, resolveFontSync } from './lib/font-resolver';
 import type { FontFacts } from './types/page-model';
-import { styleFromLine, withResolvedFont } from './lib/operation-reducer';
+import { drawsPatch, styleFromLine, withResolvedFont } from './lib/operation-reducer';
 import type { FitMode as ImageFitMode, ObjectDeleteOp, PreviewLine, RevertOp, TextAddOp, TextReplaceOp, TextStyle, TextStyleChangeOp } from './types/operations';
 import { NOTICE_MESSAGES } from './lib/document-notice';
 import { nudgeKeyAction, viewerKeyAction } from './lib/keyboard';
@@ -104,9 +104,7 @@ function PageOverlay({
     const isDraftTarget = draftOverride !== undefined && draftOverride.id === line.id;
     const effectiveText = isDraftTarget ? draftOverride.text : line.currentText;
     const isAdded = line.id.startsWith('add-');
-    const moved = line.currentBox.x !== line.box.x || line.currentBox.y !== line.box.y;
-    const textChanged = effectiveText !== line.text;
-    if (isAdded || textChanged || moved) {
+    if (drawsPatch({ ...line, currentText: effectiveText })) {
       // Force patchLayout recompute from effectiveText (handles live draft preview).
       const sample = isAdded ? null : { text: line.text, width: line.box.width, style: styleFromLine(line) };
       const { lines: pl } = layoutText(effectiveText, line.currentStyle, patchOrigin(line), pageWidth, calibratedAdvance(sample));

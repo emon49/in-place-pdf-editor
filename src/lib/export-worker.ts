@@ -30,6 +30,7 @@ import { encodeText } from './font-encoder';
 import { fitImageRect } from './image-replacement-engine';
 import { catalogFontKey, FALLBACK_FONT_KEY, fontVariant } from './font-catalog';
 import { imageMaskRect, maskRect } from './mask-geometry';
+import { styleChanged } from './operation-reducer';
 import { calibratedAdvance, layoutText, patchOrigin, type LayoutLine } from './text-layout';
 
 // ─── Payload types ────────────────────────────────────────────────────────────
@@ -138,7 +139,7 @@ async function exportPdf(
     for (const line of pageData.lines) {
       const isEdited = line.currentText !== line.text;
       const isMoved = line.currentBox.x !== line.box.x || line.currentBox.y !== line.box.y;
-      const needsProcessing = line.deleted || isEdited || isMoved || line.isAdded;
+      const needsProcessing = line.deleted || isEdited || isMoved || line.isAdded || styleChanged(line.style, line.currentStyle);
       if (!needsProcessing) continue;
 
       // Mask at Position A (original position).
