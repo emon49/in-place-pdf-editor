@@ -23,7 +23,11 @@ function cspPlugin(): Plugin {
   };
 }
 
+// Served from a subpath on GitHub Pages (`/<repo>/`); the deploy workflow sets BASE_PATH.
+const base = process.env.BASE_PATH ?? '/';
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     tailwindcss(),
@@ -37,7 +41,8 @@ export default defineConfig({
         short_name: 'Seamless PDF',
         description: 'Edit PDFs in place, privately, in your browser.',
         display: 'standalone',
-        start_url: '/',
+        start_url: base,
+        scope: base,
         background_color: '#f8fafc',
         theme_color: '#1e293b',
         icons: [
