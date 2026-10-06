@@ -28,6 +28,8 @@ export const PDFJS_PARAMS: Omit<DocumentInitParameters, 'data'> = {
   wasmUrl: `${base}pdfjs/wasm/`,
   iccUrl: `${base}pdfjs/iccs/`,
   enableXfa: false,
+  // Exposes `toFontChar` so the preview can draw edits in the embedded font (font tier 1).
+  fontExtraProperties: true,
 };
 
 export function openPdf(file: FileLike, bytes: Uint8Array) {

@@ -147,8 +147,7 @@ function collectFontFamilies(pages: ExportPage[]): Set<string> {
   for (const page of pages) {
     for (const line of page.lines) {
       if (line.deleted) continue;
-      const isChanged = line.currentText !== line.text || line.isAdded;
-      if (!isChanged) continue;
+      // Set exactly on lines drawn as patches (edited, moved or added).
       const rf: ResolvedFont | null = line.resolvedFont;
       if (rf && rf.tier !== 1) families.add(rf.cssFamily);
     }

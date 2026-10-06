@@ -1,4 +1,4 @@
-import type { FontClass, TextLine } from '../types/page-model';
+import type { FontClass, FontFacts, TextLine } from '../types/page-model';
 import type { ResolvedFont } from '../types/operations';
 import { lookupCatalog, lookupSubstitute, normalizeFamily } from './font-catalog';
 import { fetchCatalogFont, fetchGoogleFont, getConsent, type ConsentState } from './font-fetcher';
@@ -206,4 +206,96 @@ export async function resolveFont(
     cssFamily: cssFamilyFallback,
     reason: `${liberationFamily} (${fontClass} fallback)`,
   };
+}
+
+// ─── Synchronous resolution shared by preview and export ─────────────────────
+
+/** The parts of a (preview) Text Line the resolution chain reads. */
+export interface FontResolutionInput {
+  readonly font: FontFacts;
+  /** PDF.js `loadedName` of the original font. */
+  readonly fontRef: string;
+  readonly family: string;
+  readonly fontClass: FontClass;
+  /** Catalog family the user picked, or null to keep the original. */
+  readonly fontFamilyOverride: string | null;
+}
+
+const GENERIC_BY_CLASS: Record<FontClass, string> = {
+  sans: 'sans-serif',
+  serif: 'serif',
+  mono: 'monospace',
+};
+
+/**
+ * Char codes for `text` in the original font, or null when it cannot draw it in both places:
+ * export needs the encoded codes, preview needs each code in the face PDF.js draws the font with.
+ */
+function originalFontCodes(font: FontFacts, text: string): number[] | null {
+  const { coverage, face } = font;
+  if (font.licence?.editable !== true || !coverage || !face) return null;
+  for (const ch of text) if (!coverage.has(ch)) return null;
+  const codes = encodeText(text, font);
+  if (!codes || codes.some((code) => !face.glyphMap.has(code))) return null;
+  return codes;
+}
+
+/**
+ * The Font Resolution Chain without network access (ADR-0007): an explicit catalog choice, then
+ * the embedded original font, then the catalog / metric-compatible substitute for the family,
+ * then Liberation by Font Class. Preview and export both read this result.
+ */
+export function resolveFontSync(input: FontResolutionInput, text: string): ResolvedFont {
+  if (input.fontFamilyOverride) {
+    const chosen = lookupCatalog(input.fontFamilyOverride);
+    if (chosen) return { tier: 2, source: 'catalog', cssFamily: chosen.cssFamily, reason: `Chosen font: ${chosen.family}` };
+  }
+
+  if (originalFontCodes(input.font, text.replace(/\n/g, ''))) {
+    return { tier: 1, source: 'original', pdfFontRef: input.fontRef, loadedName: input.fontRef, reason: 'Original font' };
+  }
+
+  const entry = input.family ? lookupCatalog(input.family) : null;
+  if (entry) {
+    return normalizeFamily(entry.family) === normalizeFamily(input.family)
+      ? { tier: 2, source: 'catalog', cssFamily: entry.cssFamily, reason: `Catalog font: ${entry.family}` }
+      : {
+          tier: 3,
+          source: 'substitute',
+          cssFamily: entry.cssFamily,
+          reason: `'${input.family}' → ${entry.family} (metric-compatible substitute)`,
+        };
+  }
+
+  const fallback = LIBERATION_BY_CLASS[input.fontClass];
+  return { tier: 4, source: 'liberation', cssFamily: fallback, reason: `${fallback} (${input.fontClass} fallback)` };
+}
+
+/** How a patch line is drawn in the browser: a CSS font stack and the characters to draw with it. */
+export interface PatchFont {
+  readonly fontFamily: string;
+  readonly text: string;
+}
+
+function cssFamilyName(name: string): string {
+  return `"${name.replace(/["\\]/g, '\\$&')}"`;
+}
+
+/**
+ * The browser font for one patch line of `text` (no newlines). Tier 1 draws exactly as the PDF.js
+ * canvas does: char codes mapped into the face PDF.js uses for the original font (embedded or its
+ * installed substitute). Other tiers use the catalog family. Fallbacks match the line's Font Class.
+ */
+export function patchFont(rf: ResolvedFont, font: FontFacts, fontClass: FontClass, text: string): PatchFont {
+  const generic = GENERIC_BY_CLASS[fontClass];
+  if (rf.tier === 1) {
+    const codes = originalFontCodes(font, text);
+    const face = font.face;
+    if (codes && face) {
+      const chars = codes.map((code) => String.fromCodePoint(face.glyphMap.get(code) as number)).join('');
+      return { fontFamily: face.family, text: chars };
+    }
+    return { fontFamily: `${cssFamilyName(LIBERATION_BY_CLASS[fontClass])}, ${generic}`, text };
+  }
+  return { fontFamily: `${cssFamilyName(rf.cssFamily)}, ${generic}`, text };
 }

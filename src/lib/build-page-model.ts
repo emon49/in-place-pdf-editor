@@ -1,4 +1,5 @@
 import type { PDFDocument } from 'pdf-lib';
+import { browserFaceOf, charCodesOf } from './browser-face';
 import { correlateSpans, walkOperatorList } from './content-stream-state';
 import type { PageGeometry } from './coordinates';
 import { findFontDictionary, fontFactsFromDictionary, readFontDictionary, unknownFontFacts } from './font-descriptor';
@@ -28,17 +29,19 @@ interface ResolvedFont {
 async function resolveFont(ctx: BuildPageModelContext, fontName: string, font: PdfJsFont | undefined): Promise<ResolvedFont> {
   const rawName = font?.name ?? fontName;
   const fontRef = font?.loadedName ?? fontName;
+  const face = font ? browserFaceOf(font) : undefined;
+  const browser = { face, charCodes: font ? charCodesOf(font, face?.glyphMap) : undefined };
   try {
     const doc = await ctx.getPdfLib();
     const dict = findFontDictionary(doc, ctx.pageIndex, rawName);
     if (dict) {
       const parsed = readFontDictionary(dict);
-      return { identity: identifyFont(rawName, parsed.hints), facts: fontFactsFromDictionary(parsed), fontRef };
+      return { identity: identifyFont(rawName, parsed.hints), facts: { ...fontFactsFromDictionary(parsed), ...browser }, fontRef };
     }
   } catch {
     // fall through: the name still identifies the family and style
   }
-  return { identity: identifyFont(rawName), facts: unknownFontFacts(rawName), fontRef };
+  return { identity: identifyFont(rawName), facts: { ...unknownFontFacts(rawName), ...browser }, fontRef };
 }
 
 /**

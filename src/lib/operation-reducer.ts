@@ -1,4 +1,5 @@
 import type { ImageObject, TextLine } from '../types/page-model';
+import { resolveFontSync } from './font-resolver';
 import type {
   EditOperation,
   ImageReplaceOp,
@@ -200,14 +201,27 @@ export function applyOperations(
   const result: PreviewLine[] = [];
   for (const line of lines) {
     const preview = previewMap.get(line.id);
-    if (preview) result.push(preview);
+    if (preview) result.push(withResolvedFont(preview, false));
   }
   for (const added of addedLines) {
     // If a TEXT_ADD was reverted, exclude the added line.
-    if (!added.deleted) result.push(added);
+    if (!added.deleted) result.push(withResolvedFont(added, true));
   }
 
   return result;
+}
+
+/** Attach the Resolved Font to a line whose text is drawn as a patch (edited, moved or added). */
+export function withResolvedFont(line: PreviewLine, added: boolean): PreviewLine {
+  const moved = line.currentBox.x !== line.box.x || line.currentBox.y !== line.box.y;
+  if (line.deleted || (!added && !moved && line.currentText === line.text)) return line;
+  return {
+    ...line,
+    resolvedFont: resolveFontSync(
+      { ...line, fontFamilyOverride: line.currentStyle.fontFamilyOverride },
+      line.currentText,
+    ),
+  };
 }
 
 /**

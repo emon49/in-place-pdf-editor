@@ -21,6 +21,12 @@ export interface PdfJsFont {
   readonly ascent?: number;
   readonly descent?: number;
   readonly fallbackName?: string;
+  /** Char code → character in PDF.js's registered font face (needs `fontExtraProperties`). */
+  readonly toFontChar?: ArrayLike<number | undefined>;
+  /** Char code → Unicode, as PDF.js's ToUnicode map or identity range (needs `fontExtraProperties`). */
+  readonly toUnicode?: { readonly _map?: ArrayLike<string | undefined>; readonly firstChar?: number; readonly lastChar?: number };
+  /** Set when PDF.js substitutes an installed font for a non-embedded one; `css` is its font stack. */
+  readonly systemFontInfo?: { readonly css?: string };
 }
 
 export interface PageText {

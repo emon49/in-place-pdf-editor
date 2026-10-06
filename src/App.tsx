@@ -24,6 +24,7 @@ import { TextOverlay } from './components/TextOverlay';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { createOperation } from './lib/create-operation';
 import { layoutText } from './lib/text-layout';
+import { withResolvedFont } from './lib/operation-reducer';
 import type { FitMode as ImageFitMode, ObjectDeleteOp, PreviewLine, RevertOp, TextAddOp, TextReplaceOp, TextStyle, TextStyleChangeOp } from './types/operations';
 import { NOTICE_MESSAGES } from './lib/document-notice';
 import { nudgeKeyAction, viewerKeyAction } from './lib/keyboard';
@@ -97,7 +98,7 @@ function PageOverlay({
       // Force patchLayout recompute from effectiveText (handles live draft preview).
       const layoutBox = moved ? line.currentBox : line.box;
       const { lines: pl } = layoutText(effectiveText, line.currentStyle, layoutBox, pageWidth);
-      return { ...line, currentText: effectiveText, patchLayout: pl };
+      return withResolvedFont({ ...line, currentText: effectiveText, patchLayout: pl }, line.id.startsWith('add-'));
     }
     return isDraftTarget ? { ...line, currentText: effectiveText } : line;
   });
@@ -221,7 +222,7 @@ export function App() {
   const actions = editorStore.getState();
   const [addTextPos, setAddTextPos] = useState<{ point: Point; geometry: PageGeometry } | null>(null);
   /** Draft text for the side-panel text editor (null when no text block is selected). */
-  const [draftText, setDraftText] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ id: string; text: string } | null>(null);
   /** Ref always carries the latest draft so the selection-change effect can read it without a stale closure. */
   const draftRef = useRef<{ id: string; text: string; pageIndex: number } | null>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -263,12 +264,19 @@ export function App() {
 
   /** Called on every keystroke in the side-panel textarea. Updates draft + ref. */
   const handleDraftChange = useCallback((text: string) => {
-    setDraftText(text);
-    if (draftRef.current) draftRef.current.text = text;
-  }, []);
+    if (!selection || selection.startsWith('img:')) return;
+    setDraft({ id: selection, text });
+    draftRef.current = { id: selection, text, pageIndex: editorStore.getState().view.pageIndex };
+  }, [selection]);
 
-  // When selection changes: commit any pending draft, then seed draft for the new selection.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // A draft belongs to one selection; drop it during render so no frame pairs it with another line.
+  const [draftSelection, setDraftSelection] = useState(selection);
+  if (draftSelection !== selection) {
+    setDraftSelection(selection);
+    setDraft(null);
+  }
+
+  // When selection changes: commit the pending draft of the previous selection.
   useEffect(() => {
     const prev = draftRef.current;
     if (prev) {
@@ -286,21 +294,6 @@ export function App() {
         );
       }
       draftRef.current = null;
-    }
-
-    if (selection && !selection.startsWith('img:')) {
-      const s = editorStore.getState();
-      const pi = s.view.pageIndex;
-      const preview = s.previewLines(pi);
-      const line = preview.find((l) => l.id === selection);
-      if (line && !line.deleted) {
-        setDraftText(line.currentText);
-        draftRef.current = { id: selection, text: line.currentText, pageIndex: pi };
-      } else {
-        setDraftText(null);
-      }
-    } else {
-      setDraftText(null);
     }
   }, [selection]);
 
@@ -760,11 +753,7 @@ export function App() {
                         pageIndex={pageIndex}
                         geometry={geometry}
                         zoom={zoom}
-                        draftOverride={
-                          draftText !== null && selection && !selection.startsWith('img:')
-                            ? { id: selection, text: draftText }
-                            : undefined
-                        }
+                        draftOverride={draft ?? undefined}
                         addTextPos={addTextPos}
                         onCommitAddText={handleCommitAddText}
                         onCancelAddText={() => {
@@ -781,10 +770,10 @@ export function App() {
                   }}
                 />
               </div>
-              {selection && selectedLine && draftText !== null && (
+              {selection && selectedLine && !selectedLine.deleted && (
                 <TextEditorPanel
                   line={selectedLine}
-                  text={draftText}
+                  text={draft?.id === selection ? draft.text : selectedLine.currentText}
                   onTextChange={handleDraftChange}
                 />
               )}

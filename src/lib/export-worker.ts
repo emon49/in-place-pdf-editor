@@ -266,12 +266,14 @@ async function drawTextPatch(
     // Tier 1: reference existing font resource.
     const resourceName = findFontResourceName(page, fontRawName);
     if (resourceName) {
+      // Composite (Identity) fonts use two-byte codes; simple fonts one byte.
+      const codeWidth = fontFacts.encoding?.kind === 'composite' ? 4 : 2;
       for (const layoutLine of layoutLines) {
         const encoded = encodeText(layoutLine.text, fontFacts);
         if (!encoded) continue;
 
         const hexStr = PDFHexString.of(
-          encoded.map((b) => b.toString(16).padStart(2, '0')).join(''),
+          encoded.map((code) => code.toString(16).padStart(codeWidth, '0')).join(''),
         );
 
         const ops: PDFOperator[] = [

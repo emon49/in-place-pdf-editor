@@ -29,6 +29,8 @@ function line(i: number, text: string, y: number, extra: Partial<TextLine> = {})
     color: { hex: '#1F293B', source: 'exact' },
     background: { status: 'ready', color: '#FFFFFF', uniform: true, ratio: 1 },
     lockReason: null,
+    fontClass: 'sans',
+    font: { rawName: 'Helvetica', subtype: 'Type1', embedding: null, licence: null, encoding: null, coverage: null },
     ...extra,
   } as TextLine;
 }
@@ -179,6 +181,36 @@ describe('text editing operations (7.x)', () => {
     // Selection still '0:0'; change selection to commit
     fireEvent.click(boxes[1] as HTMLElement);
     expect(editorStore.getState().selection).toBe('0:1');
+  });
+
+  it('a draft never paints onto the next selected line', async () => {
+    openFakeDocument();
+    render(<App />);
+    const boxes = await screen.findAllByTestId('text-box');
+    fireEvent.click(boxes[0] as HTMLElement);
+    fireEvent.change(await screen.findByTestId('text-editor-textarea'), { target: { value: 'Edited' } });
+    // Record every node inserted while the selection changes, including short-lived ones.
+    const observer = new MutationObserver(() => undefined);
+    observer.observe(document.body, { childList: true, subtree: true });
+    fireEvent.click(boxes[1] as HTMLElement);
+    const inserted = observer.takeRecords().flatMap((r) => [...r.addedNodes]).filter((n): n is HTMLElement => n instanceof HTMLElement);
+    observer.disconnect();
+    const paintedOnNext = inserted.flatMap((n) => [n, ...n.querySelectorAll<HTMLElement>('[data-line-id]')])
+      .filter((n) => (n.dataset.testid === 'patch' || n.dataset.testid === 'mask') && n.dataset.lineId === '0:1');
+    expect(paintedOnNext).toEqual([]);
+    const patches = screen.getAllByTestId('patch');
+    expect(patches.map((p) => p.dataset.lineId)).toEqual(['0:0']);
+    expect((screen.getByTestId('text-editor-textarea') as HTMLTextAreaElement).value).toBe('Total amount due');
+  });
+
+  it('draws an edited line in a font of its own Font Class', async () => {
+    openFakeDocument();
+    render(<App />);
+    fireEvent.click((await screen.findAllByTestId('text-box'))[0] as HTMLElement);
+    fireEvent.change(await screen.findByTestId('text-editor-textarea'), { target: { value: 'Edited' } });
+    const span = (await screen.findAllByTestId('patch-line'))[0] as HTMLElement;
+    expect(span.style.fontFamily).toContain('Liberation Sans');
+    expect(span.style.fontFamily).toContain('sans-serif');
   });
 
   it('changed text pushes TEXT_REPLACE; unchanged text pushes no op (7.1)', async () => {

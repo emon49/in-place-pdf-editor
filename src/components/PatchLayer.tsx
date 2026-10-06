@@ -1,4 +1,8 @@
+import { useEffect } from 'react';
 import { pageToScreen, type PageGeometry } from '../lib/coordinates';
+import { lookupCatalog } from '../lib/font-catalog';
+import { fetchCatalogFont } from '../lib/font-fetcher';
+import { patchFont, resolveFontSync } from '../lib/font-resolver';
 import type { LayoutLine, PreviewLine } from '../types/operations';
 
 interface PatchLayerProps {
@@ -34,13 +38,23 @@ function boxesOverlap(
 
 /**
  * Layer 1 (above masks): renders the new text for each active TEXT_REPLACE or
- * TEXT_ADD at the line's page position using the Resolved Font's CSS family,
+ * TEXT_ADD at the line's page position in the Resolved Font (the embedded face for tier 1),
  * matching size/spacing/color (D7, VW-6).
  * Multi-line patches use a flex column of absolutely-positioned spans.
  * Deleted lines have no patch.
  */
 export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
   const patched = lines.filter((l) => !l.deleted && l.patchLayout !== null);
+
+  // Catalog faces are registered on demand; the browser re-lays out the patch once one loads.
+  const families = patched.flatMap((l) => (l.resolvedFont && l.resolvedFont.tier !== 1 ? [l.resolvedFont.cssFamily] : []));
+  const familyKey = [...new Set(families)].sort().join('|');
+  useEffect(() => {
+    for (const family of familyKey ? familyKey.split('|') : []) {
+      const entry = lookupCatalog(family);
+      if (entry) fetchCatalogFont(entry).catch(() => undefined);
+    }
+  }, [familyKey]);
 
   if (patched.length === 0) return null;
 
@@ -49,14 +63,7 @@ export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
       {patched.map((line) => {
         const layout = line.patchLayout as LayoutLine[];
         const style = line.currentStyle;
-        const rf = line.resolvedFont;
-        // Include the original stripped family name as first choice so the browser uses the
-        // system font (e.g. "Times New Roman") when available — much closer visually to the
-        // embedded PDF font than the Liberation substitute alone.
-        const genericFamily = line.fontClass === 'serif' ? 'serif' : line.fontClass === 'mono' ? 'monospace' : 'sans-serif';
-        const resolvedCss = rf && rf.tier !== 1 ? rf.cssFamily : 'Liberation Sans';
-        const originalHint = line.family && line.family !== resolvedCss ? `'${line.family}', ` : '';
-        const cssFamily = `${originalHint}${resolvedCss}, ${genericFamily}`;
+        const rf = line.resolvedFont ?? resolveFontSync({ ...line, fontFamilyOverride: style.fontFamilyOverride }, line.currentText);
         const fontSize = style.size * zoom;
         const lineHeightPx = style.size * style.lineHeight * zoom;
 
@@ -77,6 +84,7 @@ export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
             {layout.map((layoutLine, i) => {
               // Each LayoutLine has a page-space origin (x, y). Convert to screen.
               const screenPt = pageToScreen(geometry, { x: layoutLine.x, y: layoutLine.y }, zoom);
+              const drawn = patchFont(rf, line.font, line.fontClass, layoutLine.text);
               // The y returned by pageToScreen is the top-left in screen space (PDF y=bottom).
               // We need to offset upward by the full line height so baseline aligns correctly.
               return (
@@ -87,7 +95,7 @@ export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
                     position: 'absolute',
                     left: screenPt.x,
                     top: screenPt.y - lineHeightPx,
-                    fontFamily: cssFamily,
+                    fontFamily: drawn.fontFamily,
                     fontSize: `${fontSize}px`,
                     fontWeight: style.bold ? 'bold' : 'normal',
                     fontStyle: style.italic ? 'italic' : 'normal',
@@ -98,7 +106,7 @@ export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
                     whiteSpace: 'pre',
                   }}
                 >
-                  {layoutLine.text}
+                  {drawn.text}
                 </span>
               );
             })}

@@ -20,14 +20,15 @@ function fitToCss(fit: FitMode | null): React.CSSProperties['objectFit'] {
  * Sits below the interactive ImageLayer so selection handles appear above the previews.
  */
 export function ImagePreviewLayer({ images, geometry, zoom }: ImagePreviewLayerProps) {
-  const replaced = images.filter((img) => !img.deleted && img.blobKey !== null);
+  const replaced = images.flatMap((img) => {
+    const url = !img.deleted && img.blobKey !== null ? getCachedObjectUrl(img.blobKey) : null;
+    return url ? [{ img, url }] : [];
+  });
   if (replaced.length === 0) return null;
 
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-      {replaced.map((img) => {
-        const url = getCachedObjectUrl(img.blobKey!);
-        if (!url) return null;
+      {replaced.map(({ img, url }) => {
         const rect = displayRectToScreen(pageRectToDisplay(geometry, img.currentBox), zoom);
         return (
           <img

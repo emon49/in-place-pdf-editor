@@ -21,7 +21,20 @@ export function encodeText(text: string, font: FontFacts): number[] | null {
   const encoding = font.encoding;
   const coverage = font.coverage;
 
-  // Identity-H composite font: code point == Unicode code point
+  // The document's own ToUnicode data (read by PDF.js) gives exact codes for simple fonts and for
+  // two-byte Identity CMaps; other CMaps have variable-width codes this encoder cannot write.
+  const identityOrSimple = encoding?.kind !== 'composite' || encoding.name === 'Identity-H' || encoding.name === 'Identity-V';
+  if (font.charCodes && identityOrSimple) {
+    const codes: number[] = [];
+    for (const ch of text) {
+      const code = font.charCodes.get(ch);
+      if (code === undefined) return null;
+      codes.push(code);
+    }
+    return codes;
+  }
+
+  // Identity-H composite font without ToUnicode data: assume code point == Unicode code point
   if (encoding?.kind === 'composite' && encoding.name === 'Identity-H') {
     const codes: number[] = [];
     for (const ch of text) {

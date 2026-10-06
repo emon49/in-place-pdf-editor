@@ -56,6 +56,18 @@ export interface FontFacts {
   readonly encoding: Unknown<FontEncoding>;
   /** Characters the font can draw; null when unknown. */
   readonly coverage: Unknown<ReadonlySet<string>>;
+  /** The browser font PDF.js draws this font with; absent when it registered none (Type 3, unavailable). */
+  readonly face?: BrowserFace;
+  /** Character → char code in this font, from PDF.js's ToUnicode data; absent when unknown. */
+  readonly charCodes?: ReadonlyMap<string, number>;
+}
+
+/** How the PDF.js canvas draws a font, so the preview can draw the same way. */
+export interface BrowserFace {
+  /** CSS font-family stack PDF.js uses: the embedded face, or its system-font substitute. */
+  readonly family: string;
+  /** Char code → character in that face (PDF.js moves embedded glyphs into the Private Use Area). */
+  readonly glyphMap: ReadonlyMap<number, number>;
 }
 
 export interface TextLine {
