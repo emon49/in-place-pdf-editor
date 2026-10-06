@@ -13,7 +13,7 @@ export function FontTierExplanation({ resolvedFont }: FontTierExplanationProps) 
       ? resolvedFont.loadedName
       : resolvedFont.cssFamily;
 
-  const tierLabel = ['', 'Original font', 'Catalog font', 'Substitute font', 'Liberation fallback'][resolvedFont.tier] ?? '';
+  const tierLabel = ['', 'Original font', 'Catalog font', 'Substitute font', 'Fallback font'][resolvedFont.tier] ?? '';
 
   return (
     <span

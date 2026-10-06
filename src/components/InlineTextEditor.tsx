@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { pageToScreen, type PageGeometry, type Point } from '../lib/coordinates';
+import { ensureCatalogFont } from '../lib/font-fetcher';
 import { rowStep } from '../lib/text-layout';
 import type { TextStyle } from '../types/operations';
 
@@ -51,6 +52,12 @@ export function InlineTextEditor({ point, style, fontFamily, zoom, pageGeometry,
   useEffect(() => {
     ref.current?.focus();
   }, []);
+
+  // Load the catalog face the text will be drawn in (no-op for other stacks).
+  useEffect(() => {
+    const family = /^"([^"]+)"/.exec(fontFamily)?.[1];
+    if (family) ensureCatalogFont(family, style.bold, style.italic);
+  }, [fontFamily, style.bold, style.italic]);
 
   // Fit width to the longest typed line (min ~8 em, max the wrap limit), then height to the content.
   useLayoutEffect(() => {

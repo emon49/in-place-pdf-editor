@@ -1,0 +1,5 @@
+CMU Serif, CMU Sans Serif and CMU Typewriter Text (Computer Modern Unicode)
+by Andrey V. Panov, based on Donald E. Knuth's Computer Modern.
+Licensed under the SIL Open Font License 1.1 (https://openfontlicense.org).
+Original files: https://cm-unicode.sourceforge.io/
+Taken unmodified from the npm package computer-modern@0.1.3.

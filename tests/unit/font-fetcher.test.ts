@@ -16,9 +16,8 @@ const FONT_DATA = new ArrayBuffer(64);
 const entry: CatalogEntry = {
   family: 'Roboto',
   key: 'roboto',
-  path: '/fonts/Roboto-Regular.woff2',
+  files: { regular: '/fonts/Roboto-Regular.ttf', bold: '/fonts/Roboto-Bold.ttf', italic: '/fonts/Roboto-Italic.ttf', boldItalic: '/fonts/Roboto-BoldItalic.ttf' },
   cssFamily: 'Roboto',
-  hasVariable: false,
 };
 
 // Mock Cache Storage
@@ -71,7 +70,7 @@ describe('fetchCatalogFont', () => {
 
   it('serves from cache on second call without fetching', async () => {
     const cachedResp = new Response(FONT_DATA);
-    cacheStore.set(entry.path, cachedResp);
+    cacheStore.set(entry.files.regular, cachedResp);
     // Override match to return buffer
     mockCache.match.mockResolvedValueOnce({
       arrayBuffer: async () => FONT_DATA,

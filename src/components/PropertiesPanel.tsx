@@ -210,7 +210,7 @@ export function TextEditorPanel({ line, text, onTextChange }: TextEditorPanelPro
   const rf = line.resolvedFont;
 
   const tierLabel = rf
-    ? ['', 'Original font', 'Catalog font', 'Substitute font', 'Liberation fallback'][rf.tier] ?? ''
+    ? ['', 'Original font', 'Catalog font', 'Substitute font', 'Fallback font'][rf.tier] ?? ''
     : null;
   const fontLabel = rf ? (rf.tier === 1 ? rf.loadedName : rf.cssFamily) : null;
 

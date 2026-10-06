@@ -28,6 +28,7 @@ import type { Point, Rect } from './coordinates';
 import type { TextStyle, ResolvedFont, FitMode } from '../types/operations';
 import { encodeText } from './font-encoder';
 import { fitImageRect } from './image-replacement-engine';
+import { catalogFontKey, FALLBACK_FONT_KEY, fontVariant } from './font-catalog';
 import { imageMaskRect, maskRect } from './mask-geometry';
 import { calibratedAdvance, layoutText, patchOrigin, type LayoutLine } from './text-layout';
 
@@ -77,7 +78,7 @@ export interface ExportPage {
 export interface ExportPayload {
   readonly originalBytes: Uint8Array;
   readonly pages: ExportPage[];
-  /** cssFamily → WOFF2/TTF bytes for tiers 2-4. */
+  /** catalogFontKey(family, style) → TTF bytes for tiers 2-4. */
   readonly fontBytes: Record<string, Uint8Array>;
   /** blobKey → PNG/JPEG bytes for IMAGE_REPLACE. */
   readonly imageBytes: Record<string, Uint8Array>;
@@ -133,23 +134,6 @@ async function exportPdf(
     const page = pdfDoc.getPages()[pageData.pageIndex];
     if (!page) continue;
 
-    // Pre-embed fonts needed for this page.
-    for (const line of pageData.lines) {
-      if (line.deleted || (line.text === line.currentText && !line.isAdded)) continue;
-      const rf = line.resolvedFont;
-      if (rf && rf.tier !== 1 && !embeddedFonts.has(rf.cssFamily)) {
-        const bytes = payload.fontBytes[rf.cssFamily];
-        if (bytes) {
-          try {
-            const pdfFont = await pdfDoc.embedFont(bytes, { subset: true });
-            embeddedFonts.set(rf.cssFamily, pdfFont);
-          } catch {
-            // Font embedding failed; will use fallback
-          }
-        }
-      }
-    }
-
     // Process lines on this page.
     for (const line of pageData.lines) {
       const isEdited = line.currentText !== line.text;
@@ -159,7 +143,7 @@ async function exportPdf(
 
       // Mask at Position A (original position).
       if (!line.isAdded) {
-        coverOriginalPosition(page, maskRect(line.box, line.origin, line.fontSize), line.maskColor ?? '#ffffff');
+        coverOriginalPosition(page, maskRect(line.box, line.origin, line.fontSize, line.style.italic), line.maskColor ?? '#ffffff');
       }
 
       // Draw patch at Position B if not deleted.
@@ -310,39 +294,23 @@ async function drawTextPatch(
     // Fall through to tiers 2-4 if resource name not found.
   }
 
-  // Tiers 2-4: use embedded font.
-  const family = resolvedFont && resolvedFont.tier !== 1 ? resolvedFont.cssFamily : null;
-  let pdfFont = family ? embeddedFonts.get(family) : null;
-
-  if (!pdfFont && family) {
-    const bytes = fontBytes[family];
-    if (bytes) {
-      try {
-        pdfFont = await pdfDoc.embedFont(bytes, { subset: true });
-        embeddedFonts.set(family, pdfFont);
-      } catch {
-        // Font embed failed
-      }
+  // Tiers 2-4: embed the catalog file for this family and style (bold/italic), else the fallback.
+  const embed = async (key: string): Promise<PDFFont | null> => {
+    const cached = embeddedFonts.get(key);
+    if (cached) return cached;
+    const bytes = fontBytes[key];
+    if (!bytes) return null;
+    try {
+      const font = await pdfDoc.embedFont(bytes, { subset: true });
+      embeddedFonts.set(key, font);
+      return font;
+    } catch {
+      return null;
     }
-  }
-
-  // Fallback: embed Liberation Sans from the payload if nothing else worked.
-  if (!pdfFont) {
-    const liberationBytes = fontBytes['Liberation Sans'];
-    if (liberationBytes) {
-      const key = '__liberation_sans__';
-      let lib = embeddedFonts.get(key);
-      if (!lib) {
-        try {
-          lib = await pdfDoc.embedFont(liberationBytes, { subset: true });
-          embeddedFonts.set(key, lib);
-        } catch {
-          return; // Cannot draw without a font
-        }
-      }
-      pdfFont = lib;
-    }
-  }
+  };
+  const variant = fontVariant(style.bold, style.italic);
+  let pdfFont = resolvedFont && resolvedFont.tier !== 1 ? await embed(catalogFontKey(resolvedFont.cssFamily, variant)) : null;
+  pdfFont ??= await embed(FALLBACK_FONT_KEY);
 
   if (!pdfFont) return;
 

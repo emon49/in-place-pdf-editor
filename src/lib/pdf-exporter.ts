@@ -6,7 +6,7 @@
  */
 import type { PreviewImage, PreviewLine, ResolvedFont } from '../types/operations';
 import { loadBlob } from './image-replacement-engine';
-import { lookupCatalog } from './font-catalog';
+import { catalogFontKey, FALLBACK_FONT_KEY, fontVariant, lookupCatalog, type FontVariant } from './font-catalog';
 import type { ExportPayload, ExportPage, ExportTextLine, ExportImage, WorkerInMessage, WorkerOutMessage } from './export-worker';
 
 export interface ExportProgressFn {
@@ -53,34 +53,24 @@ export async function exportDocument(
     }),
   );
 
-  // 4. Collect CSS font families needed for tiers 2–4.
-  const fontFamilies = collectFontFamilies(pages);
+  // 4. Collect the catalog font files (family + style) needed for tiers 2–4, plus the fallback.
+  const fontFiles = collectFontFiles(pages);
+  fontFiles.set(FALLBACK_FONT_KEY, { family: 'Liberation Sans', variant: 'regular' });
 
   // 5. Fetch font bytes from the self-hosted catalog.
   const fontBytes: Record<string, Uint8Array> = {};
   await Promise.all(
-    [...fontFamilies].map(async (family) => {
+    [...fontFiles].map(async ([key, { family, variant }]) => {
       const entry = lookupCatalog(family);
       if (!entry) return;
       try {
-        const resp = await fetch(entry.path);
-        if (resp.ok) fontBytes[family] = new Uint8Array(await resp.arrayBuffer());
+        const resp = await fetch(entry.files[variant]);
+        if (resp.ok) fontBytes[key] = new Uint8Array(await resp.arrayBuffer());
       } catch {
         // Font fetch failed; Worker will skip or use fallback.
       }
     }),
   );
-
-  // Always include Liberation Sans as the ultimate fallback (tier 4).
-  const liberationEntry = lookupCatalog('Liberation Sans');
-  if (liberationEntry && !fontBytes['Liberation Sans']) {
-    try {
-      const resp = await fetch(liberationEntry.path);
-      if (resp.ok) fontBytes['Liberation Sans'] = new Uint8Array(await resp.arrayBuffer());
-    } catch {
-      // Not critical; Worker will continue without it.
-    }
-  }
 
   // 6. Build the payload and hand off to the Worker.
   const payload: ExportPayload = { originalBytes, pages, fontBytes, imageBytes };
@@ -142,18 +132,20 @@ function buildExportPage(
   return { pageIndex, pageWidth, pageHeight, lines, images };
 }
 
-/** Collect all CSS font families needed for tiers 2–4 across all pages. */
-function collectFontFamilies(pages: ExportPage[]): Set<string> {
-  const families = new Set<string>();
+/** Collect the catalog font files (family + style) needed for tiers 2–4 across all pages. */
+function collectFontFiles(pages: ExportPage[]): Map<string, { family: string; variant: FontVariant }> {
+  const files = new Map<string, { family: string; variant: FontVariant }>();
   for (const page of pages) {
     for (const line of page.lines) {
       if (line.deleted) continue;
       // Set exactly on lines drawn as patches (edited, moved or added).
       const rf: ResolvedFont | null = line.resolvedFont;
-      if (rf && rf.tier !== 1) families.add(rf.cssFamily);
+      if (!rf || rf.tier === 1) continue;
+      const variant = fontVariant(line.currentStyle.bold, line.currentStyle.italic);
+      files.set(catalogFontKey(rf.cssFamily, variant), { family: rf.cssFamily, variant });
     }
   }
-  return families;
+  return files;
 }
 
 // ─── Worker communication ─────────────────────────────────────────────────────

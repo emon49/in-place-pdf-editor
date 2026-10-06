@@ -1,6 +1,6 @@
 import type { FontClass, FontFacts, TextLine } from '../types/page-model';
 import type { ResolvedFont } from '../types/operations';
-import { lookupCatalog, lookupSubstitute, normalizeFamily } from './font-catalog';
+import { lookupCatalog, lookupSubstitute, normalizeFamily, texFontStyle } from './font-catalog';
 import { fetchCatalogFont, fetchGoogleFont, getConsent, type ConsentState } from './font-fetcher';
 import { encodeText } from './font-encoder';
 
@@ -79,15 +79,22 @@ function classFromName(family: string): FontClass {
 export function identifyFont(rawName: string, hints: DescriptorHints | null = null): FontIdentity {
   const { family, subsetPrefix, styleText } = parseFontName(rawName);
   const flags = hints?.flags ?? null;
+  // TeX fonts name their style (CMBX12 = bold serif) and often carry only the Symbolic flag.
+  const tex = texFontStyle(family);
   let fontClass: FontClass;
-  if (flags !== null) fontClass = flags & FLAG_FIXED_PITCH ? 'mono' : flags & FLAG_SERIF ? 'serif' : 'sans';
+  if (tex) fontClass = tex.fontClass;
+  // Many fonts set neither bit, so only a set bit is evidence; otherwise the name decides.
+  else if (flags !== null && flags & FLAG_FIXED_PITCH) fontClass = 'mono';
+  else if (flags !== null && flags & FLAG_SERIF) fontClass = 'serif';
   else fontClass = classFromName(family);
 
   const bold =
+    tex?.bold === true ||
     WEIGHT_WORDS.test(styleText) ||
     (hints?.weight ?? 0) >= 600 ||
     (flags !== null && (flags & FLAG_FORCE_BOLD) !== 0);
   const italic =
+    tex?.italic === true ||
     ITALIC_WORDS.test(styleText) ||
     (hints?.italicAngle ?? 0) !== 0 ||
     (flags !== null && (flags & FLAG_ITALIC) !== 0);
@@ -96,11 +103,11 @@ export function identifyFont(rawName: string, hints: DescriptorHints | null = nu
 
 // ─── Font Resolution Chain (ADR-0007) ─────────────────────────────────────────
 
-/** Liberation fallback family by FontClass. */
+/** Fallback family by FontClass (self-hosted; metric-compatible with Arial / Times / Courier). */
 const LIBERATION_BY_CLASS: Record<FontClass, string> = {
   sans: 'Liberation Sans',
-  serif: 'Liberation Serif',
-  mono: 'Liberation Mono',
+  serif: 'Tinos',
+  mono: 'Cousine',
 };
 
 /**

@@ -48,6 +48,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,wasm,bcmap,pfb,ttf,icc,webmanifest}'],
+        // Substitute fonts (~13 MB) load on demand and are kept by the font fetcher's own cache.
+        globIgnores: ['fonts/**'],
         // PDF.js worker and CMap/font data are large; precache everything the app may need offline.
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',

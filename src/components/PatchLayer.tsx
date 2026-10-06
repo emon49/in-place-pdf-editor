@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { pageToScreen, type PageGeometry } from '../lib/coordinates';
-import { lookupCatalog } from '../lib/font-catalog';
-import { fetchCatalogFont } from '../lib/font-fetcher';
+import { ensureCatalogFont } from '../lib/font-fetcher';
 import { patchFont, resolveFontSync } from '../lib/font-resolver';
 import { PatchText } from './PatchText';
 import type { LayoutLine, PreviewLine } from '../types/operations';
@@ -47,15 +46,19 @@ function boxesOverlap(
 export function PatchLayer({ lines, geometry, zoom }: PatchLayerProps) {
   const patched = lines.filter((l) => !l.deleted && l.patchLayout !== null);
 
-  // Catalog faces are registered on demand; the browser re-lays out the patch once one loads.
-  const families = patched.flatMap((l) => (l.resolvedFont && l.resolvedFont.tier !== 1 ? [l.resolvedFont.cssFamily] : []));
-  const familyKey = [...new Set(families)].sort().join('|');
+  // Catalog faces (in the line's weight and slant) are registered on demand; patches redraw once loaded.
+  const faces = patched.flatMap((l) =>
+    l.resolvedFont && l.resolvedFont.tier !== 1
+      ? [`${l.resolvedFont.cssFamily}|${l.currentStyle.bold ? 1 : 0}|${l.currentStyle.italic ? 1 : 0}`]
+      : [],
+  );
+  const faceKey = [...new Set(faces)].sort().join('\n');
   useEffect(() => {
-    for (const family of familyKey ? familyKey.split('|') : []) {
-      const entry = lookupCatalog(family);
-      if (entry) fetchCatalogFont(entry).catch(() => undefined);
+    for (const face of faceKey ? faceKey.split('\n') : []) {
+      const [family = '', bold, italic] = face.split('|');
+      ensureCatalogFont(family, bold === '1', italic === '1');
     }
-  }, [familyKey]);
+  }, [faceKey]);
 
   if (patched.length === 0) return null;
 

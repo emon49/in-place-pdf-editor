@@ -1,4 +1,4 @@
-import type { CatalogEntry } from './font-catalog';
+import { fontVariant, lookupCatalog, type CatalogEntry, type FontVariant } from './font-catalog';
 
 /** Per-family consent state for Google Fonts downloads. */
 export type ConsentState = 'pending' | 'granted' | 'denied' | 'always-allow';
@@ -56,12 +56,17 @@ const registeredFonts = new Map<string, FontFace>();
  * Registers a font file with the document's FontFaceSet and returns the
  * CSS family name so it can be used in inline styles.
  */
-export async function registerFont(cssFamily: string, data: ArrayBuffer): Promise<string> {
-  if (registeredFonts.has(cssFamily)) return cssFamily;
-  const face = new FontFace(cssFamily, data);
+export async function registerFont(cssFamily: string, data: ArrayBuffer, variant: FontVariant = 'regular'): Promise<string> {
+  const key = `${cssFamily}|${variant}`;
+  if (registeredFonts.has(key)) return cssFamily;
+  // Weight/style descriptors let CSS and canvas pick the real bold/italic face instead of faking it.
+  const face = new FontFace(cssFamily, data, {
+    weight: variant === 'bold' || variant === 'boldItalic' ? '700' : '400',
+    style: variant === 'italic' || variant === 'boldItalic' ? 'italic' : 'normal',
+  });
   await face.load();
   document.fonts.add(face);
-  registeredFonts.set(cssFamily, face);
+  registeredFonts.set(key, face);
   return cssFamily;
 }
 
@@ -71,19 +76,25 @@ export async function registerFont(cssFamily: string, data: ArrayBuffer): Promis
  * Fetches a catalog font, caches it in Cache Storage, registers it via
  * @font-face, and returns the CSS family name.
  */
-export async function fetchCatalogFont(entry: CatalogEntry): Promise<string> {
-  const url = entry.path;
+export async function fetchCatalogFont(entry: CatalogEntry, variant: FontVariant = 'regular'): Promise<string> {
+  const url = entry.files[variant];
 
   const cached = await cacheGet(url);
   if (cached) {
-    return registerFont(entry.cssFamily, cached);
+    return registerFont(entry.cssFamily, cached, variant);
   }
 
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Failed to fetch font: ${url} (${resp.status})`);
   const data = await resp.arrayBuffer();
   await cachePut(url, data);
-  return registerFont(entry.cssFamily, data);
+  return registerFont(entry.cssFamily, data, variant);
+}
+
+/** Starts loading the catalog face for `family` in this weight/slant; the browser redraws once it is in. */
+export function ensureCatalogFont(family: string, bold: boolean, italic: boolean): void {
+  const entry = lookupCatalog(family);
+  if (entry) fetchCatalogFont(entry, fontVariant(bold, italic)).catch(() => undefined);
 }
 
 // ─── Google Fonts loader ───────────────────────────────────────────────────────
