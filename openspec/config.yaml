@@ -1,5 +1,11 @@
 schema: spec-driven
 
+context: |
+  Requirements live in docs/PRD.md (cite IDs such as TE-6, MV-4, EX-2 in proposals and tasks).
+  Use the domain terms defined in CONTEXT.md (Text Line, Operation Log, Mask, Font Resolution Chain, Resolved Font, Page Space, ...).
+  Accepted architecture decisions are in docs/adr/; a change that contradicts one must add a superseding ADR.
+  The app is 100% client-side: no network calls carrying document data.
+
 # Project context (optional)
 # Add only constraints that should guide OpenSpec artifacts and workflows.
 # Include constraints an agent cannot infer by reading the code.

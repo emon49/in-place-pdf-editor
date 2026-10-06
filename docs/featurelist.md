@@ -1,4 +1,4 @@
-# PDF In-Place Editor - Complete Feature List & Architecture Specification
+# Seamless PDF - Complete Feature List & Architecture Specification
 
 ## 🏗️ High-Level System Architecture
 
