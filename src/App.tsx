@@ -23,8 +23,8 @@ import { ImagesTab } from './components/ImagesTab';
 import { TextOverlay } from './components/TextOverlay';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { createOperation } from './lib/create-operation';
-import { layoutText } from './lib/text-layout';
-import { withResolvedFont } from './lib/operation-reducer';
+import { calibratedAdvance, layoutText } from './lib/text-layout';
+import { styleFromLine, withResolvedFont } from './lib/operation-reducer';
 import type { FitMode as ImageFitMode, ObjectDeleteOp, PreviewLine, RevertOp, TextAddOp, TextReplaceOp, TextStyle, TextStyleChangeOp } from './types/operations';
 import { NOTICE_MESSAGES } from './lib/document-notice';
 import { nudgeKeyAction, viewerKeyAction } from './lib/keyboard';
@@ -97,7 +97,8 @@ function PageOverlay({
     if (textChanged || moved) {
       // Force patchLayout recompute from effectiveText (handles live draft preview).
       const layoutBox = moved ? line.currentBox : line.box;
-      const { lines: pl } = layoutText(effectiveText, line.currentStyle, layoutBox, pageWidth);
+      const sample = line.id.startsWith('add-') ? null : { text: line.text, width: line.box.width, style: styleFromLine(line) };
+      const { lines: pl } = layoutText(effectiveText, line.currentStyle, layoutBox, pageWidth, calibratedAdvance(sample));
       return withResolvedFont({ ...line, currentText: effectiveText, patchLayout: pl }, line.id.startsWith('add-'));
     }
     return isDraftTarget ? { ...line, currentText: effectiveText } : line;

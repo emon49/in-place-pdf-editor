@@ -28,9 +28,38 @@ export interface OriginBox {
  */
 export type AdvanceFn = (ch: string, style: TextStyle) => number;
 
+/** Average glyph advance (em) by Font Class, for text with no measured sample. */
+const CLASS_ADVANCE_EM: Record<TextStyle['fontClass'], number> = { sans: 0.5, serif: 0.45, mono: 0.6 };
+
+function glyphAdvance(style: TextStyle): number {
+  return style.size * CLASS_ADVANCE_EM[style.fontClass] * (style.hScale / 100);
+}
+
 function defaultAdvance(_ch: string, style: TextStyle): number {
-  // Rough monospace-style approximation: 0.6 × fontSize × hScale/100
-  return style.size * 0.6 * (style.hScale / 100) + style.charSpacing;
+  return glyphAdvance(style) + style.charSpacing;
+}
+
+/** Text whose drawn width is known: the original line as the PDF set it. */
+export interface WidthSample {
+  readonly text: string;
+  readonly width: number;
+  readonly style: TextStyle;
+}
+
+/**
+ * An advance calibrated to the font actually used: the class average is scaled so that the sample
+ * text measures exactly its known width. Without a usable sample, the class average alone is used.
+ * Pure, so preview and export wrap identically.
+ */
+export function calibratedAdvance(sample: WidthSample | null): AdvanceFn {
+  if (!sample || sample.width <= 0) return defaultAdvance;
+  const chars = [...sample.text];
+  const spaces = chars.filter((ch) => ch === ' ').length;
+  const glyphs = chars.length * glyphAdvance(sample.style);
+  const spacing = chars.length * sample.style.charSpacing + spaces * sample.style.wordSpacing;
+  if (glyphs <= 0) return defaultAdvance;
+  const scale = Math.min(2, Math.max(0.5, (sample.width - spacing) / glyphs));
+  return (_ch, style) => glyphAdvance(style) * scale + style.charSpacing;
 }
 
 /**

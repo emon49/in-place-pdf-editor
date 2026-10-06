@@ -28,7 +28,7 @@ import type { Rect } from './coordinates';
 import type { TextStyle, ResolvedFont, FitMode } from '../types/operations';
 import { encodeText } from './font-encoder';
 import { fitImageRect } from './image-replacement-engine';
-import { layoutText, type LayoutLine } from './text-layout';
+import { calibratedAdvance, layoutText, type LayoutLine } from './text-layout';
 
 // ─── Payload types ────────────────────────────────────────────────────────────
 
@@ -167,6 +167,7 @@ async function exportPdf(
           line.currentStyle,
           originBox,
           pageData.pageWidth,
+          calibratedAdvance(line.isAdded ? null : { text: line.text, width: line.box.width, style: line.style }),
         ).lines;
 
         await drawTextPatch(

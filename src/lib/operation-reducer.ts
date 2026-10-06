@@ -11,7 +11,7 @@ import type {
 } from '../types/operations';
 
 /** Build a TextStyle from a TextLine's current properties. */
-function styleFromLine(line: TextLine): TextStyle {
+export function styleFromLine(line: TextLine): TextStyle {
   return {
     fontClass: line.fontClass,
     bold: line.bold,
