@@ -26,7 +26,7 @@ export function fontVariant(bold: boolean, italic: boolean): FontVariant {
 }
 
 function entry(family: string, file: string): CatalogEntry {
-  const path = (style: string) => `/fonts/${file}-${style}.ttf`;
+  const path = (style: string) => `${import.meta.env.BASE_URL}fonts/${file}-${style}.ttf`;
   return {
     family,
     key: family.toLowerCase(),
