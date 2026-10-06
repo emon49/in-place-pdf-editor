@@ -45,7 +45,7 @@ export function Header(props: HeaderProps) {
     <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2">
       <div className="flex items-center gap-2 font-semibold text-slate-800">
         <FileText aria-hidden="true" className="size-5 text-blue-600" />
-        <span>PDF In-Place Editor</span>
+        <span>Seamless PDF</span>
       </div>
 
       <button

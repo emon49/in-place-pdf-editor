@@ -27,7 +27,7 @@ test.describe('app shell build (6.1, 6.2)', () => {
 
   test('web app manifest makes the app installable', async ({ request }) => {
     const manifest = await (await request.get('/manifest.webmanifest')).json();
-    expect(manifest).toMatchObject({ name: 'PDF In-Place Editor', display: 'standalone', start_url: '/' });
+    expect(manifest).toMatchObject({ name: 'Seamless PDF', display: 'standalone', start_url: '/' });
     const sizes = manifest.icons.map((i: { sizes: string }) => i.sizes);
     expect(sizes).toEqual(expect.arrayContaining(['192x192', '512x512']));
     for (const icon of manifest.icons as { src: string }[]) {

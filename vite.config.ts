@@ -33,8 +33,8 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['icon.svg', 'pdfjs/**/*'],
       manifest: {
-        name: 'PDF In-Place Editor',
-        short_name: 'PDF Editor',
+        name: 'Seamless PDF',
+        short_name: 'Seamless PDF',
         description: 'Edit PDFs in place, privately, in your browser.',
         display: 'standalone',
         start_url: '/',

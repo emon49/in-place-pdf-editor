@@ -1,6 +1,6 @@
 # Domain Glossary
 
-Shared language for the PDF In-Place Editor. Use these terms in code, specs (OpenSpec), PRs and UI copy. When a term changes, update it here first. Decisions behind the terms live in `docs/adr/`.
+Shared language for the Seamless PDF. Use these terms in code, specs (OpenSpec), PRs and UI copy. When a term changes, update it here first. Decisions behind the terms live in `docs/adr/`.
 
 ## Documents and objects
 

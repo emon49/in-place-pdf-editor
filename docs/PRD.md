@@ -1,4 +1,4 @@
-# Product Requirements Document: PDF In-Place Editor
+# Product Requirements Document: Seamless PDF
 
 | | |
 |---|---|

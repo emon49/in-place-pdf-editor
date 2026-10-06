@@ -6,9 +6,9 @@ const FIXED_DATE = new Date(Date.UTC(2026, 0, 1, 0, 0, 0));
 export async function createSampleDocument(title: string): Promise<PDFDocument> {
   const doc = await PDFDocument.create({ updateMetadata: false });
   doc.setTitle(title);
-  doc.setAuthor('PDF In-Place Editor samples');
-  doc.setCreator('PDF In-Place Editor');
-  doc.setProducer('PDF In-Place Editor sample generator');
+  doc.setAuthor('Seamless PDF samples');
+  doc.setCreator('Seamless PDF');
+  doc.setProducer('Seamless PDF sample generator');
   doc.setCreationDate(FIXED_DATE);
   doc.setModificationDate(FIXED_DATE);
   return doc;

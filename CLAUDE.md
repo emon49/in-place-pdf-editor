@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-**PDF In-Place Editor**: a 100% client-side, non-destructive WYSIWYG PDF editor. Users click text or images on a rendered PDF, edit them in place, and export a new PDF with the layout preserved. There is no backend. See `docs/PRD.md` for requirements, `CONTEXT.md` for the domain glossary, `docs/adr/` for architecture decisions, and `docs/featurelist.md` for the original spec.
+**Seamless PDF**: a 100% client-side, non-destructive WYSIWYG PDF editor. Users click text or images on a rendered PDF, edit them in place, and export a new PDF with the layout preserved. There is no backend. See `docs/PRD.md` for requirements, `CONTEXT.md` for the domain glossary, `docs/adr/` for architecture decisions, and `docs/featurelist.md` for the original spec.
 
 ## Tech Stack
 

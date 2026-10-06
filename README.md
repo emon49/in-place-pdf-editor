@@ -1,4 +1,4 @@
-# PDF In-Place Editor
+# Seamless PDF
 
 A 100% client-side, non-destructive WYSIWYG PDF editor that runs entirely in the browser. Click any text or image in a rendered PDF, edit it in place, and export a new PDF with the layout preserved — no uploads, no accounts, no server.
 
